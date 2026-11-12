@@ -12,6 +12,12 @@ npm start
 
 Then open http://localhost:2567 for the playground, or /monitor for the monitor.
 
+The standalone game page is `index.html`. Its multiplayer URL defaults to the
+page's origin, maps port 3000 to the Colyseus server on 2567, and uses
+`ws://localhost:2567` when opened as a local file. If the page and game server
+are hosted separately, set the `colyseus-server-url` meta tag in `index.html`
+to the server's `ws://` or `wss://` URL.
+
 ## Structure
 
 - `src/index.ts`: entry point — leave it alone if you plan to deploy to Colyseus Cloud

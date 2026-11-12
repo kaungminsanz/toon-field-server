@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>Toon Field</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="colyseus-server-url" content="">
 <style>
 :root{--hud:#2b2350;--hudbg:rgba(255,255,255,.65);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--hud:#f3eeff;--hudbg:rgba(30,24,60,.6)}}
@@ -584,7 +585,15 @@ addEventListener('keydown',e=>{if(mailOpen&&e.code==='Escape')closeMail()});
 
 
 // ===== TOON FIELD MULTIPLAYER (Colyseus) =====
-const TF_SERVER_URL = "wss://automatic-journey-9456vq757ggc7r9q-2567.app.github.dev";
+const configuredServerUrl = document.querySelector('meta[name="colyseus-server-url"]').content.trim();
+const defaultServerUrl = (() => {
+  if (location.protocol === 'file:') return 'ws://localhost:2567';
+  const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const hostname = location.hostname.replace(/-3000(?=\.app\.github\.dev$)/, '-2567');
+  const port = location.port === '3000' ? '2567' : location.port;
+  return `${scheme}//${hostname}${port ? `:${port}` : ''}`;
+})();
+const TF_SERVER_URL = configuredServerUrl || defaultServerUrl;
 let tfRoom = null, tfLastSend = 0;
 const tfRemote = new Map();
 // While another player rides a vehicle, our own copy of it is hidden and can't be mounted.
@@ -738,7 +747,6 @@ function tfAddRemote(id, p) {
   avatar.position.set(Number(p.x) || 0, Number(p.y) || 0, Number(p.z) || 0);
   avatar.visible = true;
   avatar.scale.setScalar(1.25); // same size as the local hero
-  avatar.position.y += 0.5;
   avatar.rotation.y = Number(p.yaw) || 0;
   S.add(avatar);
 
