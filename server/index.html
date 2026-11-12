@@ -42,6 +42,13 @@ body.sel #mailhint{display:none!important}
 #pick button{font:600 13px system-ui,sans-serif;color:var(--hud)}
 #rand{padding:6px 12px;border-radius:99px;border:2px solid #c9a27a;background:transparent}
 #pname{width:100%;box-sizing:border-box;padding:8px 12px;border-radius:99px;border:2px solid #e6d3bd;background:transparent;color:inherit;font:600 16px system-ui,sans-serif;text-align:center;margin-bottom:8px}
+#nameRow{display:flex;gap:6px;margin-bottom:8px}
+#nameRow #pname{flex:1;min-width:0;margin-bottom:0}
+#emojiToggle{padding:6px 10px;border:2px solid #e6d3bd;border-radius:99px;background:transparent}
+#emojiPicker{max-height:132px;overflow-y:auto;margin-bottom:8px;padding:6px;border:1px solid #e6d3bd;border-radius:14px}
+#emojiGrid{display:grid;grid-template-columns:repeat(8,1fr);gap:4px}
+#emojiGrid button{min-width:0;padding:4px 0;border:0;border-radius:8px;background:transparent;font:22px system-ui,sans-serif}
+#emojiGrid button:hover,#emojiGrid button:focus-visible{background:#fbe9c8}
 #pick .row{display:flex;gap:8px;margin-bottom:8px}
 #pick .row button{flex:1;padding:9px 0;border-radius:14px;border:2px solid #e6d3bd;background:transparent}
 #pick .row button.on,#opts button.on{border-color:#c98a3b;background:#fbe9c8;color:#4a2f1a}
@@ -82,7 +89,8 @@ body.sel #emotes{display:none}
 </div></div>
 <div id="pick">
   <div class="phead"><div class="ttl">Choose outfit</div><button id="rand">🎲 Random</button></div>
-  <input id="pname" maxlength="16" placeholder="Your name" autocomplete="off">
+  <div id="nameRow"><input id="pname" maxlength="16" placeholder="Your name" autocomplete="off"><button id="emojiToggle" type="button" aria-expanded="false" aria-controls="emojiPicker">😀 Emoji</button></div>
+  <div id="emojiPicker" hidden><div id="emojiGrid" aria-label="Choose an emoji for your name"></div></div>
   <div class="row" id="gender"><button data-g="boy">👦 Boy</button><button data-g="girl">👧 Girl</button></div>
   <div id="tabs"></div>
   <div id="opts"></div>
@@ -521,6 +529,24 @@ function applyLook(){
 }
 let tab='top';
 const tabsEl=$('tabs'),optsEl=$('opts'),colsEl=$('cols'),pname=$('pname'),genBtns=document.querySelectorAll('#gender button');
+const emojiToggle=$('emojiToggle'),emojiPicker=$('emojiPicker'),emojiGrid=$('emojiGrid');
+const NAME_EMOJIS=[...new Set('😀 😃 😄 😁 😆 😅 😂 🙂 🙃 😉 😊 😍 🥰 😎 🤩 🥳 😇 🤗 🤔 😴 😭 😡 👻 🤖 💩 👋 🙌 👏 💪 🧑 👦 👧 👨‍👩‍👧‍👦 🧑‍🎤 🧑‍🚀 🧑‍🎨 🐵 🐶 🐱 🐼 🦊 🐻 🐸 🐰 🦄 🐯 🐨 🐧 🦋 🐢 🐬 🐳 🐘 🌸 🌻 🌷 🌈 ⭐ 🌟 ☀️ 🌙 ⚡ 🔥 🍀 🌴 🍎 🍓 🍒 🍉 🍍 🍕 🍩 🎂 🍪 ☕ ⚽ 🏀 🎮 🎸 🎨 🚗 🚲 ✈️ 🚀 🏝️ 🏆 🎁 🎈 🎉 🎀 👑 💎 💖 💕 ❤️ 🧡 💛 💚 💙 💜 🤍 🖤 💯 ✅ ❄️ ☂️ 👕 👔 🥼 🧥 👗 🩳 👖 👘 🌊 ✂️ 💇 🪒 🍙 🚫 🧕 👒 🧢 🍃 😌 👜 🌬️ 🎽 🧶 🦓 👨‍🌾 🏃 💁‍♀️ 🧑‍🦱 🍥 💃 🎲'.split(' '))];
+NAME_EMOJIS.forEach(emoji=>{
+  const button=document.createElement('button');
+  button.type='button';button.textContent=emoji;button.setAttribute('aria-label',`Add ${emoji} to name`);
+  button.addEventListener('click',()=>{
+    const start=pname.selectionStart??pname.value.length,end=pname.selectionEnd??start;
+    if((pname.value.slice(0,start)+emoji+pname.value.slice(end)).length>pname.maxLength)return;
+    pname.setRangeText(emoji,start,end,'end');
+    pname.dispatchEvent(new Event('input',{bubbles:true}));
+    pname.focus();
+  });
+  emojiGrid.append(button);
+});
+emojiToggle.addEventListener('click',()=>{
+  emojiPicker.hidden=!emojiPicker.hidden;
+  emojiToggle.setAttribute('aria-expanded',String(!emojiPicker.hidden));
+});
 const ICON={tshirt:'👕',shirt:'👔',collarless:'🥼',taikpon:'🧥',skirt:'👗',shorts:'🩳',jeans:'👖',paso:'👘',acheik:'🌊',short:'✂️',side:'💇',buzz:'🪒',pony:'🎀',bun:'🍙',none:'🚫',gaung:'🧕',kamauk:'👒',cap:'🧢',cheeks:'😊',leaf:'🍃',full:'😌',shan:'👜',umbrella:'☂️',fan:'🌬️',glasses:'👓',tank:'🎽',hoodie:'🧶',striped:'🦓',overalls:'👨‍🌾',capri:'🏃',pigtails:'👧',long:'💁‍♀️',afro:'🧑‍🦱',buns:'🍥',spiky:'⚡'};
 const hex=c=>'#'+c.toString(16).padStart(6,'0');
 CFG.forEach(c=>{const b=document.createElement('button');b.textContent=c.label;b.dataset.k=c.k;b.onclick=()=>{tab=c.k;render()};tabsEl.append(b)});
