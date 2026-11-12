@@ -11,10 +11,24 @@ html,body{height:100%;margin:0;overflow:hidden;background:#bfe6ff;font-family:sy
 canvas{display:block;width:100%;height:100%}
 #hint{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 12px);transform:translateX(-50%);padding:6px 14px;border-radius:99px;background:var(--hudbg);color:var(--hud);font-size:13px;white-space:nowrap}
 #stick{position:fixed;left:18px;bottom:calc(env(safe-area-inset-bottom,0px) + 20px);width:min(144px,43vmin);height:min(144px,43vmin);border-radius:50%;background:var(--hudbg);touch-action:none}
-#knob{position:absolute;left:50%;top:50%;box-sizing:border-box;margin:-26px 0 0 -26px;width:52px;height:52px;border-radius:50%;background:#ff8fb8;border:3px solid #fff}
+#knob{position:absolute;left:50%;top:50%;box-sizing:border-box;transform:translate(-50%,-50%);width:52px;height:52px;border-radius:50%;background:#ff8fb8;border:3px solid #fff}
 #jump{position:fixed;right:18px;bottom:calc(env(safe-area-inset-bottom,0px) + 24px);width:min(104px,30vmin);height:min(104px,30vmin);border-radius:50%;border:3px solid #fff;background:#8fd3ff;color:#2b2350;font-weight:700;font-size:16px}
 #ride{position:fixed;right:18px;bottom:calc(env(safe-area-inset-bottom,0px) + 142px);width:min(104px,30vmin);height:64px;border-radius:28px;border:3px solid #fff;background:#ffd23f;color:#2b2350;font-weight:700;font-size:14px}
 @media (hover:hover) and (pointer:fine){#stick,#jump,#ride{display:none}}
+@media (orientation:portrait) and (pointer:coarse){
+  :root{
+    --portrait-stick:min(288px,74vw,34vh);
+    --portrait-action:min(208px,54vw,24vh);
+    --portrait-ride:min(128px,34vw,15vh);
+    --portrait-knob:min(104px,27vw,13vh);
+  }
+  #stick{left:12px;width:var(--portrait-stick);height:var(--portrait-stick)}
+  #knob{width:var(--portrait-knob);height:var(--portrait-knob)}
+  #jump{right:12px;width:var(--portrait-action);height:var(--portrait-action);bottom:calc(env(safe-area-inset-bottom,0px) + 20px + var(--portrait-stick) + 12px)}
+  #ride{right:12px;width:var(--portrait-action);height:var(--portrait-ride);bottom:calc(env(safe-area-inset-bottom,0px) + 20px + var(--portrait-stick) + 12px + var(--portrait-action) + 12px)}
+  #emotes{left:12px;right:auto;align-items:flex-start;top:calc(env(safe-area-inset-top,0px) + 54px)}
+  #mailhint{left:auto;right:12px;top:calc(env(safe-area-inset-top,0px) + 54px);bottom:auto;transform:none;width:min(46vw,180px);white-space:normal;padding:8px 10px}
+}
 #swap{position:fixed;right:12px;top:calc(env(safe-area-inset-top,0px) + 52px);padding:6px 12px;border-radius:99px;border:2px solid #fff;background:var(--hudbg);color:var(--hud);font:600 13px system-ui,sans-serif}
 body.sel #hint,body.sel #stick,body.sel #jump,body.sel #ride,body.sel #swap{display:none!important}
 body:not(.sel) #pick{display:none}
@@ -476,10 +490,10 @@ addEventListener('keydown',e=>{if(mailOpen)return;if(e.target&&e.target.matches&
 addEventListener('keyup',e=>keys[e.code]=false);
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;jumpReq=false});
 const stick=document.getElementById('stick'),knob=document.getElementById('knob');
-function sm(e){const r=stick.getBoundingClientRect(),travel=Math.min(r.width,r.height)/2-27;let x=(e.clientX-r.left-r.width/2)/travel,y=(e.clientY-r.top-r.height/2)/travel;const l=Math.hypot(x,y);if(l>1){x/=l;y/=l}jx=x;jy=y;knob.style.transform=`translate(${x*travel}px,${y*travel}px)`}
+function sm(e){const r=stick.getBoundingClientRect(),k=knob.getBoundingClientRect(),travel=Math.max(1,Math.min(r.width,r.height)/2-Math.max(k.width,k.height)/2-2);let x=(e.clientX-r.left-r.width/2)/travel,y=(e.clientY-r.top-r.height/2)/travel;const l=Math.hypot(x,y);if(l>1){x/=l;y/=l}jx=x;jy=y;knob.style.translate=`${x*travel}px ${y*travel}px`}
 stick.addEventListener('pointerdown',e=>{stick.setPointerCapture(e.pointerId);sm(e)});
 stick.addEventListener('pointermove',e=>{if(e.buttons||e.pointerType==='touch')sm(e)});
-const end=()=>{jx=jy=0;knob.style.transform=''};
+const end=()=>{jx=jy=0;knob.style.translate=''};
 stick.addEventListener('pointerup',end);stick.addEventListener('pointercancel',end);
 document.getElementById('jump').addEventListener('pointerdown',()=>jumpReq=true);
 let riding=false,eRide=false,pd=0;const rideBtn=document.getElementById('ride');
@@ -607,7 +621,7 @@ function updMail(){
 }
 function openMail(){
   mailOpen=true;nearMail=false;mhint.style.display='none';
-  for(const k in keys)keys[k]=false;jx=jy=0;knob.style.transform='';
+  for(const k in keys)keys[k]=false;jx=jy=0;knob.style.translate='';
   if(!mname.value&&look.name)mname.value=look.name;
   mstat.textContent='';inboxEl.hidden=true;mbox.hidden=false;mtext.focus();
 }
