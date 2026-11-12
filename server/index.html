@@ -62,8 +62,10 @@ body.sel #mailhint{display:none!important}
 #cols button{width:30px;height:30px;border-radius:50%;border:2px solid #fff8;padding:0}
 #cols button.on{outline:3px solid #c98a3b;outline-offset:1px}
 #go{width:100%;padding:12px;border-radius:14px;border:0;background:#7a4a2a;color:#fff!important;font:700 16px system-ui,sans-serif}
-#emotes{position:fixed;right:12px;top:calc(env(safe-area-inset-top,0px) + 96px);display:flex;flex-direction:column;gap:7px;z-index:5}
+#emotes{position:fixed;right:12px;top:calc(env(safe-area-inset-top,0px) + 96px);display:flex;flex-direction:column;align-items:flex-end;gap:7px;z-index:5}
 #emotes button{border:2px solid #fff;border-radius:99px;background:var(--hudbg);color:var(--hud);font:700 13px system-ui;padding:8px 10px;touch-action:manipulation}
+#emoteMenu{display:flex;flex-direction:column;gap:6px;padding:7px;border:2px solid #fff;border-radius:16px;background:var(--hudbg)}
+#emoteMenu button{min-width:118px;text-align:left}
 body.sel #emotes{display:none}
 </style></head><body class="sel">
 <canvas id="c"></canvas>
@@ -72,7 +74,15 @@ body.sel #emotes{display:none}
 <button id="jump">JUMP</button>
 <button id="ride">RIDE</button>
 <button id="swap">👕 Outfit</button>
-<div id="emotes"><button data-emote="wave">👋 Wave</button><button data-emote="dance">💃 Dance</button><button data-emote="laugh">😂 Laugh</button><button data-emote="cheer">🙌 Cheer</button></div>
+<div id="emotes">
+  <button id="emoteToggle" type="button" aria-expanded="false" aria-controls="emoteMenu">😊 Emotes</button>
+  <div id="emoteMenu" hidden>
+    <button data-emote="wave">👋 Wave</button>
+    <button data-emote="dance">💃 Dance</button>
+    <button data-emote="laugh">😂 Laugh</button>
+    <button data-emote="cheer">🙌 Cheer</button>
+  </div>
+</div>
 <button id="mailhint">✉ Write to the developer (F)</button>
 <div id="mailbox" hidden><div class="card">
   <div class="ttl">✉ Mailbox for the developer</div>
@@ -657,7 +667,16 @@ function tfPlayEmote(type){
   localEmote=type;localEmoteUntil=performance.now()+EMOTE_MS;
   if(tfRoom)tfRoom.send('emote',{type});
 }
-document.querySelectorAll('[data-emote]').forEach(b=>b.addEventListener('click',()=>tfPlayEmote(b.dataset.emote)));
+const emoteToggle=$('emoteToggle'),emoteMenu=$('emoteMenu');
+emoteToggle.addEventListener('click',()=>{
+  emoteMenu.hidden=!emoteMenu.hidden;
+  emoteToggle.setAttribute('aria-expanded',String(!emoteMenu.hidden));
+});
+document.querySelectorAll('[data-emote]').forEach(b=>b.addEventListener('click',()=>{
+  tfPlayEmote(b.dataset.emote);
+  emoteMenu.hidden=true;
+  emoteToggle.setAttribute('aria-expanded','false');
+}));
 function tfPoseEmote(r,type,dt,now){
   if(!r||!r.rig)return;
   const q=r.rig;
