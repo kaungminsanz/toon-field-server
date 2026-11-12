@@ -80,9 +80,10 @@ export class ToonFieldRoom extends Room {
         }
       }
       const ride = JSON.parse(p.look).ride;
+      const moveYaw = p.yaw + (p.direction < 0 ? Math.PI : 0);
       const rideYaw = Number.isFinite(data.rideYaw)
         ? data.rideYaw
-        : p.yaw - (ride === "bike" ? Math.PI / 2 : 0);
+        : moveYaw - (ride === "bike" ? Math.PI / 2 : 0);
       const tau = Math.PI * 2;
       p.rideYaw = ((rideYaw % tau) + tau) % tau;
     });
