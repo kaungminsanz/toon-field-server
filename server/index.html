@@ -1148,7 +1148,7 @@ callbacks.onRemove("players", (p, id) => {
 })();
 
 // loop
-let vy=0,py=0,t=0,face=0,blink=0,vx=0,vz=0,ph=0,camYaw=Math.PI,driveDirection=1;const clock=new THREE.Clock();
+let vy=0,py=0,t=0,face=0,blink=0,vx=0,vz=0,ph=0,camYaw=Math.PI,driveDirection=1,characterYaw=0;const clock=new THREE.Clock();
 function loop(){
   requestAnimationFrame(loop);
   const dt=Math.min(clock.getDelta(),.05);t+=dt;
@@ -1165,7 +1165,11 @@ function loop(){
   if(rad>590){hero.position.x*=590/rad;hero.position.z*=590/rad}
   const spd=Math.hypot(vx,vz),moving=spd>.4;
   const moveYaw=spd>.15?Math.atan2(vx,vz):face;
-  const characterYaw=(riding||eRide)?moveYaw:face;
+  if(riding||eRide){
+    let headingDelta=moveYaw-characterYaw;
+    headingDelta=Math.atan2(Math.sin(headingDelta),Math.cos(headingDelta));
+    characterYaw+=headingDelta*(1-Math.exp(-dt*14));
+  }else characterYaw=face;
   
   if(jumpReq&&py<=0&&!eRide){vy=8}jumpReq=false;
   vy-=22*dt;py+=vy*dt;if(py<0){py=0;vy=0}
