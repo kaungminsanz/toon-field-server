@@ -272,8 +272,8 @@ const eLegs=[[-1,1],[1,1],[-1,-1],[1,-1]].map(a=>{const g=new THREE.Group();g.po
 const esh=new THREE.Mesh(new THREE.CircleGeometry(1,28),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.15}));
 esh.rotation.x=-Math.PI/2;esh.position.y=.02;esh.scale.set(1.8,2.6,1);ele.add(esh);
 let eph=0;
-function updEle(dt,spd,rideYaw){
-  if(eRide){ele.position.x=hero.position.x;ele.position.z=hero.position.z;ele.rotation.y=rideYaw;eph+=dt*spd*1.1}
+function updEle(dt,spd,rideYaw,direction=1){
+  if(eRide){ele.position.x=hero.position.x;ele.position.z=hero.position.z;ele.rotation.y=rideYaw;eph+=dt*spd*direction*1.1}
   sh.visible=!eRide;
   const amp=eRide?Math.min(1,spd/3):0,s=Math.sin(eph);
   eLegs.forEach((l,i)=>l.rotation.x=((i===0||i===3)?s:-s)*.36*amp);
@@ -903,7 +903,7 @@ function tfAddRemote(id, p) {
   const rideYaw = Number(p.rideYaw);
   remote.rideYaw = Number.isFinite(rideYaw)
     ? rideYaw
-    : remote.avatar.rotation.y + (remote.direction < 0 ? Math.PI : 0) - (remote.ride === 'bike' ? Math.PI / 2 : 0);
+    : remote.avatar.rotation.y - (remote.ride === 'bike' ? Math.PI / 2 : 0);
   remote.targetRideYaw = remote.rideYaw;
 }
 
@@ -960,7 +960,7 @@ function tfUpdateRemote(id, p) {
   const rideYaw = Number(p.rideYaw);
   r.targetRideYaw = Number.isFinite(rideYaw)
     ? rideYaw
-    : r.tyaw + (r.direction < 0 ? Math.PI : 0) - (r.ride === 'bike' ? Math.PI / 2 : 0);
+    : r.tyaw - (r.ride === 'bike' ? Math.PI / 2 : 0);
   if (r.label) r.label.material.rotation = 0;
 }
 
@@ -1012,9 +1012,9 @@ function tfRideRemote(r, dt, time) {
     b.g.visible = true;
     b.g.position.set(av.position.x, av.position.y, av.position.z);
     b.g.rotation.y = r.rideYaw;
-    b.pd += dt * sp * 1.3;
+    b.pd += dt * sp * r.direction * 1.3;
     const c = Math.sin(b.pd);
-    b.wheels.forEach(w => { w.rotation.z -= sp * dt / .45; });
+    b.wheels.forEach(w => { w.rotation.z -= sp * dt * r.direction / .45; });
     q.hipL.rotation.x = -.95 + c * .45; q.hipR.rotation.x = -.95 - c * .45;
     q.kneeL.rotation.x = 1.05 - c * .5; q.kneeR.rotation.x = 1.05 + c * .5;
     q.armL.rotation.x = q.armR.rotation.x = -1.15;
@@ -1025,7 +1025,7 @@ function tfRideRemote(r, dt, time) {
     e.g.visible = true;
     e.g.position.set(av.position.x, 0, av.position.z);
     e.g.rotation.y = r.rideYaw;
-    e.eph += dt * sp * 1.1;
+    e.eph += dt * sp * r.direction * 1.1;
     const amp = Math.min(1, sp / 3), s = Math.sin(e.eph);
     e.legs.forEach((l, i) => { if (l) l.rotation.x = ((i === 0 || i === 3) ? s : -s) * .36 * amp; });
     if (e.body) e.body.position.y = Math.abs(Math.cos(e.eph)) * .07 * amp + Math.sin(time * 1.6) * .015;
@@ -1161,17 +1161,16 @@ function loop(){
   face-=sx*(riding?1.9:eRide?1.4:2.6)*dt;
   const sprint=!!(keys.ShiftLeft||keys.ShiftRight),sp=riding?10:eRide?5.5:sprint?10:6,mv=fz>0?fz:fz*.5,mx=Math.sin(face)*mv,mz=Math.cos(face)*mv;
   const kk=Math.min(1,9*dt);vx+=(mx*sp-vx)*kk;vz+=(mz*sp-vz)*kk;hero.position.x+=vx*dt;hero.position.z+=vz*dt;
-  const forwardSpeed=vx*Math.sin(face)+vz*Math.cos(face);
-  if(Math.abs(forwardSpeed)>.1)driveDirection=forwardSpeed<0?-1:1;
   const rad=Math.hypot(hero.position.x,hero.position.z);
   if(rad>590){hero.position.x*=590/rad;hero.position.z*=590/rad}
   const spd=Math.hypot(vx,vz),moving=spd>.4;
-  const moveYaw=spd>.15?Math.atan2(vx,vz):face;
   if(riding||eRide){
-    let headingDelta=moveYaw-characterYaw;
+    let headingDelta=face-characterYaw;
     headingDelta=Math.atan2(Math.sin(headingDelta),Math.cos(headingDelta));
     characterYaw+=headingDelta*(1-Math.exp(-dt*14));
   }else characterYaw=face;
+  const forwardSpeed=vx*Math.sin(characterYaw)+vz*Math.cos(characterYaw);
+  if(Math.abs(forwardSpeed)>.1)driveDirection=forwardSpeed<0?-1:1;
   
   if(jumpReq&&py<=0&&!eRide){vy=8}jumpReq=false;
   vy-=22*dt;py+=vy*dt;if(py<0){py=0;vy=0}
@@ -1183,7 +1182,7 @@ function loop(){
   y:eRide?hero.position.y:py,
   z:hero.position.z,
   yaw:characterYaw,
-  rideYaw:riding?tfBikeYaw(moveYaw):moveYaw,
+  rideYaw:riding?tfBikeYaw(characterYaw):characterYaw,
   speed:spd,
   direction:driveDirection,
   name:(look.name || pname.value || 'Guest').slice(0,18),
@@ -1199,13 +1198,13 @@ function loop(){
   armL.rotation.z=-.1;armR.rotation.z=.1;
   elbL.rotation.x=elbR.rotation.x=-.3-.3*amp;
   torso.scale.x=torso.scale.z=1+Math.sin(t*2)*.012;
-  if(riding){pd+=dt*spd*1.3;const c=Math.sin(pd);
+  if(riding){pd+=dt*spd*driveDirection*1.3;const c=Math.sin(pd);
     hipL.rotation.x=-.95+c*.45;hipR.rotation.x=-.95-c*.45;
     kneeL.rotation.x=1.05-c*.5;kneeR.rotation.x=1.05+c*.5;
     armL.rotation.x=armR.rotation.x=-1.15;elbL.rotation.x=elbR.rotation.x=-.2;
     body.position.y=py+.1;body.position.z=-.22;body.rotation.x=.2;
-    bike.position.set(hero.position.x,py,hero.position.z);bike.rotation.y=tfBikeYaw(moveYaw);
-    wheels.forEach(w=>w.rotation.z-=spd*dt/.45);
+    bike.position.set(hero.position.x,py,hero.position.z);bike.rotation.y=tfBikeYaw(characterYaw);
+    wheels.forEach(w=>w.rotation.z-=spd*dt*driveDirection/.45);
   }else if(eRide){
     hipL.rotation.x=hipR.rotation.x=-1.05;hipL.rotation.z=-.55;hipR.rotation.z=.55;kneeL.rotation.x=kneeR.rotation.x=1.1;
     armL.rotation.x=armR.rotation.x=-.9;elbL.rotation.x=elbR.rotation.x=-.3;
@@ -1240,7 +1239,7 @@ function loop(){
   pts.position.set(Math.round(hero.position.x/200)*200,0,Math.round(hero.position.z/200)*200);
   for(let i=0;i<N;i++){const dx=pp[i*3]+pts.position.x-hero.position.x,dz=pp[i*3+2]+pts.position.z-hero.position.z;if(Math.abs(dx)>100)pp[i*3]-=Math.sign(dx)*200;if(Math.abs(dz)>100)pp[i*3+2]-=Math.sign(dz)*200}
   p.needsUpdate=true;
-  gT.value=t;updEle(dt,spd,moveYaw);updMail();loveHeart.rotation.y=Math.sin(t*.8)*.5;loveHeart.scale.setScalar(1+Math.sin(t*3)*.04);const gi=Math.round(hero.position.x/GW),gj=Math.round(hero.position.z/GW);
+  gT.value=t;updEle(dt,spd,characterYaw,driveDirection);updMail();loveHeart.rotation.y=Math.sin(t*.8)*.5;loveHeart.scale.setScalar(1+Math.sin(t*3)*.04);const gi=Math.round(hero.position.x/GW),gj=Math.round(hero.position.z/GW);
   if(gi!==lgi||gj!==lgj){lgi=gi;lgj=gj;placeFlowers(gi*GP,gj*GP)}
   gGroup.position.set(gi*GW,0,gj*GW);
   let dd=characterYaw+Math.PI+yaw-camYaw;dd=Math.atan2(Math.sin(dd),Math.cos(dd));camYaw+=dd*Math.min(1,5*dt);

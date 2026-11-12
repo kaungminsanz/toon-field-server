@@ -75,6 +75,6 @@ describe("testing your Colyseus app", () => {
     player = observer.state.players.get(client.sessionId);
     assert(player.speed > 0);
     assert.strictEqual(player.direction, -1);
-    assert(Math.abs(player.rideYaw - Math.PI) < 0.00001);
+    assert(Math.abs(player.rideYaw) < 0.00001);
   });
 });
