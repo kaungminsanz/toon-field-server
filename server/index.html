@@ -811,11 +811,13 @@ function tfVoiceStatus(text){voiceStatus.textContent=text}
 function tfRefreshVoiceStatus(){
   if(!voiceEnabled)return;
   const states=[...voicePeers.values()].map(peer=>peer.pc.connectionState);
-  if(states.includes('failed'))tfVoiceStatus('Voice link unavailable');
+  if(voiceContext&&voiceContext.state!=='running')tfVoiceStatus('Tap Voice to restore audio');
+  else if(states.includes('failed'))tfVoiceStatus('Voice link failed · network may need TURN');
   else if(voiceActive)tfVoiceStatus(states.includes('connected')?'Speaking':states.length?'Speaking · connecting':'Speaking · no listener');
   else if(states.includes('connected'))tfVoiceStatus('Connected nearby');
   else if(states.length)tfVoiceStatus('Connecting nearby');
-  else tfVoiceStatus('Listening nearby');
+  else tfVoiceStatus([...tfRemote.values()].some(remote=>remote.voiceEnabled&&tfVoiceDistance(remote)<=VOICE_RANGE)
+    ?'Starting nearby link':'Waiting for a nearby player');
 }
 function tfSetVoiceButton(){
   voiceToggle.setAttribute('aria-pressed',String(voiceEnabled));
@@ -954,6 +956,7 @@ async function tfEnableVoice(){
     if(!processedTrack)throw new Error('Could not create the processed microphone track.');
     voiceStream=stream;voiceContext=context;voiceDestination=destination;voiceTrack=processedTrack;
     voiceAnalyser=analyser;voiceGate=gate;voiceMaster=master;voiceLastLoudAt=0;voiceActive=false;voiceEnabled=true;voiceStarting=false;
+    context.addEventListener('statechange',()=>{if(voiceContext===context)tfRefreshVoiceStatus()});
     voiceToggle.disabled=false;tfSetVoiceButton();tfRefreshVoiceStatus();
     tfSendVoiceState(true,false);
     tfSyncVoicePeers();voiceVadTimer=setInterval(tfUpdateVoiceActivity,100);
@@ -975,7 +978,17 @@ function tfDisableVoice(){
   if(context&&context.state!=='closed')context.close().catch(error=>console.warn('Could not close voice audio context:',error));
   voiceToggle.disabled=false;tfSetVoiceButton();tfVoiceStatus('');
 }
-voiceToggle.addEventListener('click',()=>{if(voiceEnabled)tfDisableVoice();else void tfEnableVoice()});
+voiceToggle.addEventListener('click',()=>{
+  if(voiceEnabled&&voiceContext&&voiceContext.state!=='running'){
+    voiceContext.resume().then(tfRefreshVoiceStatus).catch(error=>{tfVoiceStatus('Audio could not resume');console.warn('Could not resume voice audio:',error)});
+  }else if(voiceEnabled)tfDisableVoice();
+  else void tfEnableVoice();
+});
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&voiceEnabled&&voiceContext&&voiceContext.state!=='running'){
+    voiceContext.resume().then(tfRefreshVoiceStatus).catch(error=>console.warn('Could not resume voice audio:',error));
+  }
+});
 addEventListener('pagehide',tfDisableVoice);
 function tfPoseEmote(r,type,dt,now){
   if(!r||!r.rig)return;
