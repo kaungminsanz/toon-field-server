@@ -83,7 +83,7 @@ body.sel #mailhint{display:none!important}
 body.sel #emotes{display:none}
 </style></head><body class="sel">
 <canvas id="c"></canvas>
-<div id="hint" data-touch="Left stick move · drag to look · JUMP · RIDE near bike/elephant">W/S move · A/D turn · Space jump · E ride bike/elephant · drag free look · wheel zoom</div>
+<div id="hint" data-touch="Left stick move · drag to look · pinch to zoom · JUMP · RIDE near bike/elephant">W/S move · A/D turn · Space jump · E ride bike/elephant · drag free look · wheel zoom</div>
 <div id="stick"><div id="knob"></div></div>
 <button id="jump">JUMP</button>
 <button id="ride">RIDE</button>
@@ -509,10 +509,44 @@ function toggleRide(){if(!playing)return;
 rideBtn.addEventListener('pointerdown',toggleRide);
 let yaw=0,lx=0;
 let lookId=null,ly=0,pit=.5,cdist=12.5,smoothCdist=12.5;
-cv.addEventListener('wheel',e=>{cdist=Math.min(30,Math.max(5,cdist+e.deltaY*.01));e.preventDefault()},{passive:false});
-cv.addEventListener('pointerdown',e=>{if(lookId===null){lookId=e.pointerId;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId)}});
-cv.addEventListener('pointermove',e=>{if(e.pointerId===lookId){yaw-=(e.clientX-lx)*.006;pit=Math.min(1.4,Math.max(.08,pit+(e.clientY-ly)*.005));lx=e.clientX;ly=e.clientY}});
-const endLook=e=>{if(e.pointerId===lookId)lookId=null};
+const touchPoints=new Map();let pinchDistance=0;
+const clampCameraDistance=d=>Math.min(30,Math.max(5,d));
+const currentPinchDistance=()=>{const p=[...touchPoints.values()];return p.length<2?0:Math.hypot(p[0].x-p[1].x,p[0].y-p[1].y)};
+cv.addEventListener('wheel',e=>{cdist=clampCameraDistance(cdist+e.deltaY*.01);e.preventDefault()},{passive:false});
+cv.addEventListener('pointerdown',e=>{
+  if(e.pointerType==='touch'){
+    touchPoints.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    cv.setPointerCapture(e.pointerId);
+    if(touchPoints.size===1){lookId=e.pointerId;lx=e.clientX;ly=e.clientY}
+    else{lookId=null;pinchDistance=currentPinchDistance()}
+    return
+  }
+  if(lookId===null){lookId=e.pointerId;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId)}
+});
+cv.addEventListener('pointermove',e=>{
+  const point=touchPoints.get(e.pointerId);
+  if(point){
+    point.x=e.clientX;point.y=e.clientY;
+    if(touchPoints.size>=2){
+      const nextDistance=currentPinchDistance();
+      if(pinchDistance>0&&nextDistance>0)cdist=clampCameraDistance(cdist*pinchDistance/nextDistance);
+      pinchDistance=nextDistance;
+      lookId=null;
+      return
+    }
+  }
+  if(e.pointerId===lookId){yaw-=(e.clientX-lx)*.006;pit=Math.min(1.4,Math.max(.08,pit+(e.clientY-ly)*.005));lx=e.clientX;ly=e.clientY}
+});
+const endLook=e=>{
+  if(touchPoints.has(e.pointerId)){
+    touchPoints.delete(e.pointerId);
+    if(touchPoints.size===1){
+      const [id,point]=touchPoints.entries().next().value;
+      lookId=id;lx=point.x;ly=point.y;
+    }else if(touchPoints.size===0)lookId=null;
+    pinchDistance=currentPinchDistance();
+  }else if(e.pointerId===lookId)lookId=null;
+};
 cv.addEventListener('pointerup',endLook);cv.addEventListener('pointercancel',endLook);cv.addEventListener('lostpointercapture',endLook);
 stick.addEventListener('lostpointercapture',end);
 
