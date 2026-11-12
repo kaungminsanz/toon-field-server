@@ -213,7 +213,7 @@ treeBranch([0,8,0],[0,14,-.3],.55);
 // elephant
 const ele=new THREE.Group();ele.position.set(-6,0,-31);ele.rotation.y=.5;S.add(ele);
 const eBody=new THREE.Group();ele.add(eBody);
-const eg=0x9eb4cc,eleSeatY=3.45;
+const eg=0x9eb4cc,eleSeatY=2.3;
 eBody.add(inked(new THREE.SphereGeometry(1,32,24),eg,[0,2.2,0],[1.1,1.05,1.55]));
 eBody.add(inked(new THREE.SphereGeometry(.75,28,20),eg,[0,2.55,1.75],[1,1,.95]));
 eBody.add(inked(new THREE.SphereGeometry(.9,24,12),0xff4d6d,[0,3.17,.2],[1,.2,1]));
@@ -244,6 +244,7 @@ function updEle(dt,spd){
   const amp=eRide?Math.min(1,spd/3):0,s=Math.sin(eph);
   eLegs.forEach((l,i)=>l.rotation.x=((i===0||i===3)?s:-s)*.36*amp);
   eBody.position.y=Math.abs(Math.cos(eph))*.07*amp+Math.sin(t*1.6)*.015;
+  if(eRide)hero.position.y=eleSeatY+eBody.position.y;
   const f=Math.sin(t*3.2)*.5+.5;
   earL.rotation.y=.7+.22*f;earR.rotation.y=-(.7+.22*f);
   const lift=Math.pow(Math.max(0,Math.sin(t*.7)),6);
