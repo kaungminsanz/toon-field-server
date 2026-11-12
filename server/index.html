@@ -810,11 +810,16 @@ const voiceIceServers=(()=>{
 function tfVoiceStatus(text){voiceStatus.textContent=text}
 function tfRefreshVoiceStatus(){
   if(!voiceEnabled)return;
-  const states=[...voicePeers.values()].map(peer=>peer.pc.connectionState);
+  const peers=[...voicePeers.entries()];
+  const states=peers.map(([,peer])=>peer.pc.connectionState);
+  const receivingAudio=peers.some(([,peer])=>peer.remoteTrack&&peer.remoteTrack.readyState==='live'&&!peer.remoteTrack.muted);
+  const remoteSpeaking=peers.some(([id,peer])=>peer.remoteTrack&&tfRemote.get(id)?.voiceActive);
   if(voiceContext&&voiceContext.state!=='running')tfVoiceStatus('Tap Voice to restore audio');
   else if(states.includes('failed'))tfVoiceStatus('Voice link failed · network may need TURN');
-  else if(voiceActive)tfVoiceStatus(states.includes('connected')?'Speaking':states.length?'Speaking · connecting':'Speaking · no listener');
-  else if(states.includes('connected'))tfVoiceStatus('Connected nearby');
+  else if(voiceActive&&remoteSpeaking)tfVoiceStatus('Speaking · hearing nearby voice');
+  else if(voiceActive)tfVoiceStatus(states.includes('connected')?'Mic active · peer connected':states.length?'Speaking · connecting':'Speaking · no listener');
+  else if(remoteSpeaking)tfVoiceStatus('Hearing nearby voice');
+  else if(states.includes('connected'))tfVoiceStatus(receivingAudio?'Connected · audio received':'Connected · waiting for audio');
   else if(states.length)tfVoiceStatus('Connecting nearby');
   else tfVoiceStatus([...tfRemote.values()].some(remote=>remote.voiceEnabled&&tfVoiceDistance(remote)<=VOICE_RANGE)
     ?'Starting nearby link':'Waiting for a nearby player');
@@ -826,7 +831,7 @@ function tfSetVoiceButton(){
 function tfVoiceDistance(r){return Math.hypot(r.avatar.position.x-hero.position.x,r.avatar.position.z-hero.position.z)}
 function tfUpdateVoiceGain(id,peer,distance){
   if(peer.remoteGain&&voiceContext){
-    const level=Math.max(.04,1-Math.pow(Math.min(distance,VOICE_RANGE)/VOICE_RANGE,1.35));
+    const level=Math.max(.5,1-.5*Math.pow(Math.min(distance,VOICE_RANGE)/VOICE_RANGE,1.5));
     peer.remoteGain.gain.setTargetAtTime(level,voiceContext.currentTime,.12);
   }
 }
@@ -843,6 +848,7 @@ function tfSendVoiceSignal(id,signal){
 function tfCloseVoicePeer(id){
   const peer=voicePeers.get(id);if(!peer)return;
   voicePeers.delete(id);peer.pc.onicecandidate=null;peer.pc.ontrack=null;
+  if(peer.remoteTrack){peer.remoteTrack.onunmute=null;peer.remoteTrack.onmute=null}
   if(peer.remoteSource)peer.remoteSource.disconnect();
   if(peer.remoteGain)peer.remoteGain.disconnect();
   peer.pc.close();
@@ -850,12 +856,14 @@ function tfCloseVoicePeer(id){
 function tfEnsureVoicePeer(id){
   if(voicePeers.has(id)||!voiceEnabled||!voiceContext||!voiceTrack||!voiceDestination)return voicePeers.get(id)||null;
   const pc=new RTCPeerConnection({iceServers:voiceIceServers});
-  const peer={pc,remoteSource:null,remoteGain:null,pendingCandidates:[]};
+  const peer={pc,remoteSource:null,remoteGain:null,remoteTrack:null,pendingCandidates:[]};
   voicePeers.set(id,peer);
   try{pc.addTrack(voiceTrack,voiceDestination.stream)}catch(error){voicePeers.delete(id);pc.close();throw error}
   pc.onicecandidate=e=>{if(e.candidate)tfSendVoiceSignal(id,e.candidate.toJSON())};
   pc.ontrack=e=>{
     if(!voiceContext||voicePeers.get(id)!==peer)return;
+    peer.remoteTrack=e.track;
+    e.track.onunmute=tfRefreshVoiceStatus;e.track.onmute=tfRefreshVoiceStatus;
     if(peer.remoteSource)peer.remoteSource.disconnect();
     if(peer.remoteGain)peer.remoteGain.disconnect();
     const stream=e.streams[0]||new MediaStream([e.track]);
@@ -863,6 +871,7 @@ function tfEnsureVoicePeer(id){
     peer.remoteGain=voiceContext.createGain();
     peer.remoteSource.connect(peer.remoteGain);peer.remoteGain.connect(voiceMaster);
     const remote=tfRemote.get(id);if(remote)tfUpdateVoiceGain(id,peer,tfVoiceDistance(remote));
+    tfRefreshVoiceStatus();
   };
   pc.onconnectionstatechange=()=>{
     tfRefreshVoiceStatus();
@@ -951,7 +960,8 @@ async function tfEnableVoice(){
     const gate=context.createGain();gate.gain.value=0;
     const destination=context.createMediaStreamDestination();
     source.connect(highPass);highPass.connect(compressor);compressor.connect(analyser);analyser.connect(gate);gate.connect(destination);
-    const master=context.createDynamicsCompressor();master.threshold.value=-16;master.knee.value=18;master.ratio.value=4;master.attack.value=.005;master.release.value=.25;master.connect(context.destination);
+    const master=context.createDynamicsCompressor();master.threshold.value=-16;master.knee.value=18;master.ratio.value=4;master.attack.value=.005;master.release.value=.25;
+    const makeup=context.createGain();makeup.gain.value=1.35;master.connect(makeup);makeup.connect(context.destination);
     const processedTrack=destination.stream.getAudioTracks()[0];
     if(!processedTrack)throw new Error('Could not create the processed microphone track.');
     voiceStream=stream;voiceContext=context;voiceDestination=destination;voiceTrack=processedTrack;
@@ -1223,6 +1233,7 @@ function tfUpdateRemote(id, p) {
   r.voiceEnabled = p.voiceEnabled === true;
   const voiceActiveChanged=r.voiceActive!==(p.voiceActive===true);
   r.voiceActive = p.voiceActive === true;
+  if(voiceActiveChanged)tfRefreshVoiceStatus();
   r.lastX = nextX;
   r.lastY = nextY;
   r.lastZ = nextZ;
