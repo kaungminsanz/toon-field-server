@@ -2,6 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><title>Toon Field</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="colyseus-server-url" content="wss://automatic-journey-9456vq757ggc7r9q-2567.app.github.dev">
+<meta name="voice-ice-servers" content="[]">
 <style>
 :root{--hud:#2b2350;--hudbg:rgba(255,255,255,.65);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--hud:#f3eeff;--hudbg:rgba(30,24,60,.6)}}
@@ -86,6 +87,8 @@ body.sel #mailhint{display:none!important}
 #chatForm{display:flex;gap:6px}
 #chatInput{flex:1;min-width:0;box-sizing:border-box;padding:8px 10px;border:2px solid #e6d3bd;border-radius:12px;background:transparent;color:inherit;font:16px system-ui,sans-serif;touch-action:auto}
 #chatForm button{border:0;border-radius:12px;background:#ff8fb8;color:#2b2350;font:700 13px system-ui;padding:0 12px}
+#voiceToggle[aria-pressed="true"]{background:#b8f1c8;color:#184b30}
+#voiceStatus{max-width:min(82vw,300px);font:600 11px system-ui,sans-serif;color:var(--hud);text-shadow:0 1px 3px #fff;overflow-wrap:anywhere}
 #emoteMenu{display:flex;flex-direction:column;gap:6px;padding:7px;border:2px solid #fff;border-radius:16px;background:var(--hudbg)}
 #emoteMenu button{min-width:118px;text-align:left}
 body.sel #emotes{display:none}
@@ -98,6 +101,8 @@ body.sel #emotes{display:none}
 <button id="swap">👕 Outfit</button>
 <div id="emotes">
   <button id="chatToggle" type="button" aria-expanded="false" aria-controls="chatPanel">💬 Chat</button>
+  <button id="voiceToggle" type="button" aria-pressed="false">🎙 Voice</button>
+  <span id="voiceStatus" aria-live="polite"></span>
   <div id="chatPanel" hidden>
     <div id="chatLog" role="log" aria-live="polite" aria-label="Chat messages"></div>
     <form id="chatForm"><input id="chatInput" maxlength="160" placeholder="Type a message..." autocomplete="off" aria-label="Chat message"><button type="submit">Send</button></form>
@@ -790,6 +795,176 @@ addEventListener('keydown',e=>{
     e.preventDefault();tfCloseChat();
   }
 });
+const voiceToggle=$('voiceToggle'),voiceStatus=$('voiceStatus');
+const VOICE_RANGE=20,VOICE_DISCONNECT_RANGE=23;
+const voicePeers=new Map();
+let voiceEnabled=false,voiceStarting=false,voiceActive=false,voiceStream=null,voiceContext=null;
+let voiceDestination=null,voiceTrack=null,voiceAnalyser=null,voiceGate=null,voiceMaster=null,voiceVadTimer=0,voiceLastLoudAt=0,voiceSyncAt=0;
+const voiceIceServers=(()=>{
+  try{
+    const config=JSON.parse(document.querySelector('meta[name="voice-ice-servers"]').content);
+    if(!Array.isArray(config))throw new Error('Voice ICE server configuration must be an array.');
+    return config;
+  }catch(error){console.error('Invalid voice ICE server configuration:',error);return[]}
+})();
+function tfVoiceStatus(text){voiceStatus.textContent=text}
+function tfSetVoiceButton(){
+  voiceToggle.setAttribute('aria-pressed',String(voiceEnabled));
+  voiceToggle.textContent=voiceEnabled?'🎙 Voice on':'🎙 Voice';
+}
+function tfVoiceDistance(r){return Math.hypot(r.avatar.position.x-hero.position.x,r.avatar.position.z-hero.position.z)}
+function tfUpdateVoiceGain(id,peer,distance){
+  if(peer.remoteGain&&voiceContext){
+    const level=Math.max(.04,1-Math.pow(Math.min(distance,VOICE_RANGE)/VOICE_RANGE,1.35));
+    peer.remoteGain.gain.setTargetAtTime(level,voiceContext.currentTime,.12);
+  }
+}
+function tfSendVoiceState(enabled,speaking){
+  if(!tfRoom)return;
+  try{tfRoom.send('voiceState',{enabled,speaking})}
+  catch(error){console.warn('Could not update voice status:',error)}
+}
+function tfSendVoiceSignal(id,signal){
+  if(!tfRoom)return;
+  try{tfRoom.send('voiceSignal',{target:id,signal})}
+  catch(error){console.warn('Could not send voice connection signal:',error)}
+}
+function tfCloseVoicePeer(id){
+  const peer=voicePeers.get(id);if(!peer)return;
+  voicePeers.delete(id);peer.pc.onicecandidate=null;peer.pc.ontrack=null;
+  if(peer.remoteSource)peer.remoteSource.disconnect();
+  if(peer.remoteGain)peer.remoteGain.disconnect();
+  peer.pc.close();
+}
+function tfEnsureVoicePeer(id){
+  if(voicePeers.has(id)||!voiceEnabled||!voiceContext||!voiceTrack||!voiceDestination)return voicePeers.get(id)||null;
+  const pc=new RTCPeerConnection({iceServers:voiceIceServers});
+  const peer={pc,remoteSource:null,remoteGain:null,pendingCandidates:[]};
+  voicePeers.set(id,peer);
+  try{pc.addTrack(voiceTrack,voiceDestination.stream)}catch(error){voicePeers.delete(id);pc.close();throw error}
+  pc.onicecandidate=e=>{if(e.candidate)tfSendVoiceSignal(id,e.candidate.toJSON())};
+  pc.ontrack=e=>{
+    if(!voiceContext||voicePeers.get(id)!==peer)return;
+    if(peer.remoteSource)peer.remoteSource.disconnect();
+    if(peer.remoteGain)peer.remoteGain.disconnect();
+    const stream=e.streams[0]||new MediaStream([e.track]);
+    peer.remoteSource=voiceContext.createMediaStreamSource(stream);
+    peer.remoteGain=voiceContext.createGain();
+    peer.remoteSource.connect(peer.remoteGain);peer.remoteGain.connect(voiceMaster);
+    const remote=tfRemote.get(id);if(remote)tfUpdateVoiceGain(id,peer,tfVoiceDistance(remote));
+  };
+  pc.onconnectionstatechange=()=>{
+    if(pc.connectionState==='failed'&&voiceEnabled)tfVoiceStatus('Voice link unavailable');
+  };
+  if(tfRoom&&tfRoom.sessionId.localeCompare(id)<0){
+    pc.createOffer().then(offer=>pc.setLocalDescription(offer)).then(()=>{
+      if(voicePeers.get(id)===peer&&pc.localDescription)tfSendVoiceSignal(id,pc.localDescription.toJSON());
+    }).catch(error=>{console.warn('Could not start voice connection:',error)});
+  }
+  return peer;
+}
+async function tfHandleVoiceSignal(data){
+  if(!voiceEnabled||!data||typeof data.from!=='string'||!data.signal)return;
+  const remote=tfRemote.get(data.from);
+  if(!remote||tfVoiceDistance(remote)>VOICE_DISCONNECT_RANGE)return;
+  try{
+    const peer=tfEnsureVoicePeer(data.from);if(!peer)return;
+    const {pc}=peer,signal=data.signal;
+    if(signal.candidate){
+      const candidate=new RTCIceCandidate(signal);
+      if(pc.remoteDescription)await pc.addIceCandidate(candidate);
+      else peer.pendingCandidates.push(candidate);
+      return;
+    }
+    if(signal.type!=='offer'&&signal.type!=='answer')return;
+    await pc.setRemoteDescription(signal);
+    while(peer.pendingCandidates.length)await pc.addIceCandidate(peer.pendingCandidates.shift());
+    if(signal.type==='offer'){
+      const answer=await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      if(voicePeers.get(data.from)===peer&&pc.localDescription)tfSendVoiceSignal(data.from,pc.localDescription.toJSON());
+    }
+  }catch(error){console.warn('Could not process voice connection signal:',error)}
+}
+function tfSyncVoicePeers(){
+  if(!voiceEnabled||!tfRoom){
+    for(const id of voicePeers.keys())tfCloseVoicePeer(id);
+    return;
+  }
+  const keep=new Set();
+  tfRemote.forEach((remote,id)=>{
+    const distance=tfVoiceDistance(remote);
+    const existing=voicePeers.has(id);
+    if(remote.voiceEnabled&&distance<=(existing?VOICE_DISCONNECT_RANGE:VOICE_RANGE)){
+      try{
+        const peer=tfEnsureVoicePeer(id);
+        if(peer){keep.add(id);tfUpdateVoiceGain(id,peer,distance)}
+      }catch(error){console.warn('Could not connect nearby voice peer:',error);tfVoiceStatus('Voice connection failed')}
+    }
+  });
+  for(const id of voicePeers.keys())if(!keep.has(id))tfCloseVoicePeer(id);
+}
+function tfUpdateVoiceActivity(){
+  if(!voiceEnabled||!voiceAnalyser||!voiceContext||!voiceGate)return;
+  const samples=new Uint8Array(voiceAnalyser.fftSize);
+  voiceAnalyser.getByteTimeDomainData(samples);
+  let energy=0;
+  for(const sample of samples){const value=(sample-128)/128;energy+=value*value}
+  if(Math.sqrt(energy/samples.length)>.018)voiceLastLoudAt=performance.now();
+  const speaking=performance.now()-voiceLastLoudAt<320;
+  voiceGate.gain.setTargetAtTime(speaking?1:0,voiceContext.currentTime,speaking ? .025 : .08);
+  if(speaking!==voiceActive){
+    voiceActive=speaking;tfVoiceStatus(speaking?'Speaking':'Listening nearby');
+    tfSendVoiceState(true,speaking);
+  }
+}
+async function tfEnableVoice(){
+  if(voiceEnabled||voiceStarting)return;
+  voiceStarting=true;voiceToggle.disabled=true;tfVoiceStatus('Allow microphone access');
+  let stream=null,context=null;
+  try{
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('Microphone capture is unavailable in this browser.');
+    if(!window.RTCPeerConnection)throw new Error('WebRTC is unavailable in this browser.');
+    stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1},video:false});
+    if(!voiceStarting){stream.getTracks().forEach(track=>track.stop());return}
+    const AudioContextType=window.AudioContext||window.webkitAudioContext;
+    if(!AudioContextType)throw new Error('Web Audio is unavailable in this browser.');
+    context=new AudioContextType();await context.resume();
+    const source=context.createMediaStreamSource(stream);
+    const highPass=context.createBiquadFilter();highPass.type='highpass';highPass.frequency.value=95;
+    const compressor=context.createDynamicsCompressor();compressor.threshold.value=-24;compressor.knee.value=18;compressor.ratio.value=3;compressor.attack.value=.005;compressor.release.value=.22;
+    const analyser=context.createAnalyser();analyser.fftSize=512;analyser.smoothingTimeConstant=.25;
+    const gate=context.createGain();gate.gain.value=0;
+    const destination=context.createMediaStreamDestination();
+    source.connect(highPass);highPass.connect(compressor);compressor.connect(analyser);analyser.connect(gate);gate.connect(destination);
+    const master=context.createDynamicsCompressor();master.threshold.value=-16;master.knee.value=18;master.ratio.value=4;master.attack.value=.005;master.release.value=.25;master.connect(context.destination);
+    const processedTrack=destination.stream.getAudioTracks()[0];
+    if(!processedTrack)throw new Error('Could not create the processed microphone track.');
+    voiceStream=stream;voiceContext=context;voiceDestination=destination;voiceTrack=processedTrack;
+    voiceAnalyser=analyser;voiceGate=gate;voiceMaster=master;voiceLastLoudAt=0;voiceActive=false;voiceEnabled=true;voiceStarting=false;
+    voiceToggle.disabled=false;tfSetVoiceButton();tfVoiceStatus('Listening nearby');
+    tfSendVoiceState(true,false);
+    tfSyncVoicePeers();voiceVadTimer=setInterval(tfUpdateVoiceActivity,100);
+  }catch(error){
+    stream?.getTracks().forEach(track=>track.stop());
+    if(context&&context.state!=='closed')await context.close().catch(closeError=>console.warn('Could not close voice audio context:',closeError));
+    voiceEnabled=false;voiceStarting=false;voiceToggle.disabled=false;tfSetVoiceButton();tfVoiceStatus('Microphone unavailable');console.warn('Could not start voice chat:',error);
+  }
+}
+function tfDisableVoice(){
+  voiceStarting=false;
+  if(voiceEnabled)tfSendVoiceState(false,false);
+  voiceEnabled=false;voiceActive=false;clearInterval(voiceVadTimer);voiceVadTimer=0;
+  for(const id of voicePeers.keys())tfCloseVoicePeer(id);
+  if(voiceStream)voiceStream.getTracks().forEach(track=>track.stop());
+  if(voiceTrack)voiceTrack.stop();
+  voiceStream=null;voiceTrack=null;voiceDestination=null;voiceAnalyser=null;voiceGate=null;voiceMaster=null;
+  const context=voiceContext;voiceContext=null;
+  if(context&&context.state!=='closed')context.close().catch(error=>console.warn('Could not close voice audio context:',error));
+  voiceToggle.disabled=false;tfSetVoiceButton();tfVoiceStatus('');
+}
+voiceToggle.addEventListener('click',()=>{if(voiceEnabled)tfDisableVoice();else void tfEnableVoice()});
+addEventListener('pagehide',tfDisableVoice);
 function tfPoseEmote(r,type,dt,now){
   if(!r||!r.rig)return;
   const q=r.rig;
@@ -820,7 +995,7 @@ function tfShowPopup(owner,key,text,kind,duration){
   sprite.scale.set(2.8,.7,1);sprite.position.y=3.35;sprite.renderOrder=10;
   owner.avatar.add(sprite);owner[key]=sprite;owner[`${key}Until`]=performance.now()+duration;
 }
-function tfLabel(name) {
+function tfLabel(name,voiceActive=false) {
   const c = document.createElement('canvas');
   c.width = 256;
   c.height = 64;
@@ -833,7 +1008,9 @@ function tfLabel(name) {
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillStyle = '#fff';
-  ctx.fillText(String(name || 'Player').slice(0, 18), 128, 32);
+  if(voiceActive){ctx.fillStyle='#73e49b';ctx.beginPath();ctx.arc(22,32,8,0,Math.PI*2);ctx.fill()}
+  ctx.fillStyle='#fff';
+  ctx.fillText(String(name || 'Player').slice(0, 18), voiceActive?136:128, 32);
   const tex = new THREE.CanvasTexture(c);
   const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
   const sp = new THREE.Sprite(mat);
@@ -952,7 +1129,7 @@ function tfAddRemote(id, p) {
   avatar.rotation.y = Number(p.yaw) || 0;
   S.add(avatar);
 
-  const label = tfLabel(p.name || 'Guest');
+  const label = tfLabel(p.name || 'Guest',p.voiceActive===true);
   avatar.add(label);
 
   const remote = {
@@ -965,6 +1142,7 @@ function tfAddRemote(id, p) {
     targetSpeed: Math.max(0, Math.min(12, Number(p.speed) || 0)),
     phase: 0,
     chatBubble: null, chatBubbleUntil: 0, typingBubble: null, typingBubbleUntil: 0,
+    voiceEnabled: p.voiceEnabled === true, voiceActive: p.voiceActive === true,
     y: Number(p.y) || 0,
     tx: Number(p.x) || 0, ty: Number(p.y) || 0, tz: Number(p.z) || 0, tyaw: Number(p.yaw) || 0,
     lastX: Number(p.x) || 0,
@@ -1017,6 +1195,9 @@ function tfUpdateRemote(id, p) {
   r.targetSpeed = Number.isFinite(reportedSpeed)
     ? Math.max(0, Math.min(12, reportedSpeed))
     : Math.min(12, distance / elapsed);
+  r.voiceEnabled = p.voiceEnabled === true;
+  const voiceActiveChanged=r.voiceActive!==(p.voiceActive===true);
+  r.voiceActive = p.voiceActive === true;
   r.lastX = nextX;
   r.lastY = nextY;
   r.lastZ = nextZ;
@@ -1026,13 +1207,13 @@ function tfUpdateRemote(id, p) {
   r.tx = nextX; r.ty = nextY; r.tz = nextZ; r.tyaw = nextYaw;
 
   const newName = String(p.name || 'Guest');
-  if (r.name !== newName) {
+  if (r.name !== newName || voiceActiveChanged) {
     if (r.label) {
       r.avatar.remove(r.label);
       if (r.label.material && r.label.material.map) r.label.material.map.dispose();
       if (r.label.material) r.label.material.dispose();
     }
-    r.label = tfLabel(newName);
+    r.label = tfLabel(newName,r.voiceActive);
     r.avatar.add(r.label);
     r.name = newName;
   }
@@ -1228,6 +1409,8 @@ function tfRemoveRemote(id) {
         if(r)tfShowPopup(r,'chatBubble',text,'chat',3500);
       }
     });
+    tfRoom.onMessage('voiceSignal', data => { void tfHandleVoiceSignal(data); });
+    if(voiceEnabled)tfSendVoiceState(true,voiceActive);
 callbacks.onAdd("players", (p, id) => {
   if (id === tfRoom.sessionId) return;
 
@@ -1321,6 +1504,7 @@ function loop(){
     if(r.emote && performance.now()<r.emoteUntil)tfPoseEmote(r,r.emote,dt,t);
     else if(r.emote){r.emote='';r.rig.body.rotation.z=0;r.rig.head.rotation.x=-r.rig.body.rotation.x*.6;r.rig.armL.rotation.z=-.1;r.rig.armR.rotation.z=.1}
   });
+  if(performance.now()-voiceSyncAt>400){voiceSyncAt=performance.now();tfSyncVoicePeers()}
   {let eT=false,bT=false;
     tfRemote.forEach(r=>{
       if(r.ride==='ele'){eT=true;remoteEleLast={x:r.avatar.position.x,z:r.avatar.position.z,ry:r.rideYaw}}

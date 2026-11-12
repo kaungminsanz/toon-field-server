@@ -11,6 +11,8 @@ const Player = schema({
   direction: t.number().default(1),
   name: t.string().default("Guest"),
   look: t.string().default("{}"),
+  voiceEnabled: t.boolean().default(false),
+  voiceActive: t.boolean().default(false),
 }, "Player");
 
 const State = schema({
@@ -23,6 +25,7 @@ const EMOTE_MIN_MS = 500;
 const CHAT_MAX = 160;
 const CHAT_MIN_MS = 400;
 const TYPING_MIN_MS = 250;
+const VOICE_STATE_MIN_MS = 80;
 
 export class ToonFieldRoom extends Room {
   state = new State();
@@ -33,6 +36,7 @@ export class ToonFieldRoom extends Room {
   private lastEmote = new Map<string, number>();
   private lastChat = new Map<string, number>();
   private lastTyping = new Map<string, number>();
+  private lastVoiceState = new Map<string, number>();
   private typingPlayers = new Set<string>();
 
   onCreate() {
@@ -144,6 +148,51 @@ export class ToonFieldRoom extends Room {
         text,
       });
     });
+
+    this.onMessage("voiceState", (client, data: any) => {
+      if (!data || typeof data.enabled !== "boolean" || typeof data.speaking !== "boolean") return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      const now = Date.now();
+      if (data.enabled && now - (this.lastVoiceState.get(client.sessionId) ?? 0) < VOICE_STATE_MIN_MS) return;
+      this.lastVoiceState.set(client.sessionId, now);
+      player.voiceEnabled = data.enabled;
+      player.voiceActive = data.enabled && data.speaking;
+    });
+
+    this.onMessage("voiceSignal", (client, data: any) => {
+      if (!data || typeof data.target !== "string" || data.target === client.sessionId) return;
+      const sender = this.state.players.get(client.sessionId);
+      const recipient = this.state.players.get(data.target);
+      if (!sender || !recipient || !sender.voiceEnabled || !recipient.voiceEnabled) return;
+      if (Math.hypot(sender.x - recipient.x, sender.z - recipient.z) > 25) return;
+      const target = this.clients.find((roomClient) => roomClient.sessionId === data.target);
+      if (!target || !data.signal || typeof data.signal !== "object" || Array.isArray(data.signal)) return;
+
+      const signal = data.signal;
+      if ((signal.type === "offer" || signal.type === "answer") &&
+          typeof signal.sdp === "string" && signal.sdp.length <= 16000) {
+        target.send("voiceSignal", {
+          from: client.sessionId,
+          signal: { type: signal.type, sdp: signal.sdp },
+        });
+        return;
+      }
+
+      if (typeof signal.candidate !== "string" || signal.candidate.length > 4096) return;
+      target.send("voiceSignal", {
+        from: client.sessionId,
+        signal: {
+          candidate: signal.candidate,
+          sdpMid: typeof signal.sdpMid === "string" ? signal.sdpMid.slice(0, 128) : null,
+          sdpMLineIndex: Number.isInteger(signal.sdpMLineIndex) ? signal.sdpMLineIndex : null,
+          ...(typeof signal.usernameFragment === "string"
+            ? { usernameFragment: signal.usernameFragment.slice(0, 128) }
+            : {}),
+        },
+      });
+    });
   }
 
   onJoin(client: Client, options?: any) {
@@ -166,5 +215,6 @@ export class ToonFieldRoom extends Room {
     this.lastEmote.delete(client.sessionId);
     this.lastChat.delete(client.sessionId);
     this.lastTyping.delete(client.sessionId);
+    this.lastVoiceState.delete(client.sessionId);
   }
 }

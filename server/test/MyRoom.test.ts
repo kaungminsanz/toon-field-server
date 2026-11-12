@@ -101,4 +101,27 @@ describe("testing your Colyseus app", () => {
     sender.send("typing", { typing: false });
     assert.deepStrictEqual(await typingStopped, { sessionId: sender.sessionId, typing: false });
   });
+
+  it("relays voice signaling between opted-in room members", async () => {
+    const room = await colyseus.createRoom("toon_field", {});
+    const sender = await colyseus.connectTo(room);
+    const observer = await colyseus.connectTo(room);
+
+    let nextPatch = observer.waitForNextPatch();
+    sender.send("voiceState", { enabled: true, speaking: false });
+    await nextPatch;
+    nextPatch = sender.waitForNextPatch();
+    observer.send("voiceState", { enabled: true, speaking: false });
+    await nextPatch;
+
+    const relayedSignal = new Promise((resolve) => observer.onMessage("voiceSignal", resolve));
+    sender.send("voiceSignal", {
+      target: observer.sessionId,
+      signal: { type: "offer", sdp: "test-sdp" },
+    });
+    assert.deepStrictEqual(await relayedSignal, {
+      from: sender.sessionId,
+      signal: { type: "offer", sdp: "test-sdp" },
+    });
+  });
 });

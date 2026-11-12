@@ -20,6 +20,13 @@ to the server's `ws://` or `wss://` URL. The Netlify page uses the configured
 Codespaces URL; that server must remain running and publicly forwarded for
 multiplayer to work.
 
+Voice chat is opt-in and only connects players within 20 game units. WebRTC
+uses the `voice-ice-servers` meta tag in `index.html`; its value must be a JSON
+array of ICE server objects. The default empty array uses direct host candidates,
+which may not connect players behind NAT. Configure STUN/TURN servers you
+control for reliable internet connectivity; do not put long-lived TURN
+credentials in the public HTML.
+
 ## Structure
 
 - `src/index.ts`: entry point — leave it alone if you plan to deploy to Colyseus Cloud
