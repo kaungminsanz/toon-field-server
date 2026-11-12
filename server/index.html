@@ -53,6 +53,7 @@ body.sel #mailhint{display:none!important}
 #pick{position:fixed;left:50%;bottom:0;transform:translateX(-50%);width:min(100vw,440px);max-height:58vh;overflow:auto;box-sizing:border-box;padding:12px 14px calc(env(safe-area-inset-bottom,0px) + 14px);border-radius:24px 24px 0 0;background:var(--card);color:var(--hud)}
 #pick .phead{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
 #pick .ttl{font-weight:700;font-size:18px}
+#pick .joinNote{margin:-3px 0 9px;text-align:center;font-size:12px;opacity:.72}
 #pick button{font:600 13px system-ui,sans-serif;color:var(--hud)}
 #rand{padding:6px 12px;border-radius:99px;border:2px solid #c9a27a;background:transparent}
 #pname{width:100%;box-sizing:border-box;padding:8px 12px;border-radius:99px;border:2px solid #e6d3bd;background:transparent;color:inherit;font:600 16px system-ui,sans-serif;text-align:center;margin-bottom:8px}
@@ -112,14 +113,15 @@ body.sel #emotes{display:none}
   </div>
 </div></div>
 <div id="pick">
-  <div class="phead"><div class="ttl">Choose outfit</div><button id="rand">🎲 Random</button></div>
-  <div id="nameRow"><input id="pname" maxlength="16" placeholder="Your name" autocomplete="off"><button id="emojiToggle" type="button" aria-expanded="false" aria-controls="emojiPicker">😀 Emoji</button></div>
+  <div class="phead"><div class="ttl">Welcome to Toon Field</div><button id="rand">🎲 Random</button></div>
+  <div class="joinNote">Choose a player name and outfit, then join as a guest.</div>
+  <div id="nameRow"><input id="pname" maxlength="16" placeholder="Player name (optional)" aria-label="Player name" autocomplete="off"><button id="emojiToggle" type="button" aria-expanded="false" aria-controls="emojiPicker">😀 Emoji</button></div>
   <div id="emojiPicker" hidden><div id="emojiGrid" aria-label="Choose an emoji for your name"></div></div>
   <div class="row" id="gender"><button data-g="boy">👦 Boy</button><button data-g="girl">👧 Girl</button></div>
   <div id="tabs"></div>
   <div id="opts"></div>
   <div id="cols"></div>
-  <button id="go">✔ Save</button>
+  <button id="go">▶ Play as Guest</button>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
