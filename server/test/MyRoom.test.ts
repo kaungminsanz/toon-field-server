@@ -77,4 +77,28 @@ describe("testing your Colyseus app", () => {
     assert.strictEqual(player.direction, -1);
     assert(Math.abs(player.rideYaw) < 0.00001);
   });
+
+  it("broadcasts chat and typing status using the joined player's name", async () => {
+    const room = await colyseus.createRoom("toon_field", {});
+    const sender = await colyseus.connectTo(room, { name: "Player One" });
+    const observer = await colyseus.connectTo(room);
+    sender.onMessage("typing", () => {});
+    sender.onMessage("chat", () => {});
+
+    const typingStarted = new Promise((resolve) => observer.onMessage("typing", resolve));
+    sender.send("typing", { typing: true });
+    assert.deepStrictEqual(await typingStarted, { sessionId: sender.sessionId, typing: true });
+
+    const chatMessage = new Promise((resolve) => observer.onMessage("chat", resolve));
+    sender.send("chat", { name: "Impersonator", text: "  hello   everyone  " });
+    assert.deepStrictEqual(await chatMessage, {
+      sessionId: sender.sessionId,
+      name: "Player One",
+      text: "hello everyone",
+    });
+
+    const typingStopped = new Promise((resolve) => observer.onMessage("typing", resolve));
+    sender.send("typing", { typing: false });
+    assert.deepStrictEqual(await typingStopped, { sessionId: sender.sessionId, typing: false });
+  });
 });

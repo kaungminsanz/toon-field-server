@@ -79,6 +79,13 @@ body.sel #mailhint{display:none!important}
 #go{width:100%;padding:12px;border-radius:14px;border:0;background:#7a4a2a;color:#fff!important;font:700 16px system-ui,sans-serif}
 #emotes{position:fixed;right:12px;top:calc(env(safe-area-inset-top,0px) + 96px);display:flex;flex-direction:column;align-items:flex-end;gap:7px;z-index:5}
 #emotes button{border:2px solid #fff;border-radius:99px;background:var(--hudbg);color:var(--hud);font:700 13px system-ui;padding:8px 10px;touch-action:manipulation}
+#chatPanel{width:min(82vw,300px);box-sizing:border-box;padding:10px;border:2px solid #fff;border-radius:16px;background:var(--card);color:var(--hud);box-shadow:0 4px 16px #24133b44;touch-action:auto}
+#chatLog{height:124px;overflow:auto;margin-bottom:8px;font-size:13px;overflow-wrap:anywhere;overscroll-behavior:contain}
+#chatLog .chatLine{padding:3px 0}
+#chatLog .chatLine b{margin-right:5px}
+#chatForm{display:flex;gap:6px}
+#chatInput{flex:1;min-width:0;box-sizing:border-box;padding:8px 10px;border:2px solid #e6d3bd;border-radius:12px;background:transparent;color:inherit;font:16px system-ui,sans-serif;touch-action:auto}
+#chatForm button{border:0;border-radius:12px;background:#ff8fb8;color:#2b2350;font:700 13px system-ui;padding:0 12px}
 #emoteMenu{display:flex;flex-direction:column;gap:6px;padding:7px;border:2px solid #fff;border-radius:16px;background:var(--hudbg)}
 #emoteMenu button{min-width:118px;text-align:left}
 body.sel #emotes{display:none}
@@ -90,6 +97,11 @@ body.sel #emotes{display:none}
 <button id="ride">RIDE</button>
 <button id="swap">👕 Outfit</button>
 <div id="emotes">
+  <button id="chatToggle" type="button" aria-expanded="false" aria-controls="chatPanel">💬 Chat</button>
+  <div id="chatPanel" hidden>
+    <div id="chatLog" role="log" aria-live="polite" aria-label="Chat messages"></div>
+    <form id="chatForm"><input id="chatInput" maxlength="160" placeholder="Type a message..." autocomplete="off" aria-label="Chat message"><button type="submit">Send</button></form>
+  </div>
   <button id="emoteToggle" type="button" aria-expanded="false" aria-controls="emoteMenu">😊 Emotes</button>
   <div id="emoteMenu" hidden>
     <button data-emote="wave">👋 Wave</button>
@@ -488,7 +500,7 @@ sh.rotation.x=-Math.PI/2;sh.position.y=.02;S.add(sh);
 
 // input
 const keys={};let jx=0,jy=0,jumpReq=false;
-addEventListener('keydown',e=>{if(mailOpen)return;if(e.target&&e.target.matches&&e.target.matches('input,textarea'))return;if(e.code==='KeyF'&&!e.repeat&&nearMail){openMail();return}if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();keys[e.code]=true;if(e.code==='Space')jumpReq=true;if(e.code==='KeyE'&&!e.repeat)toggleRide()});
+addEventListener('keydown',e=>{if(mailOpen||!chatPanel.hidden)return;if(e.target&&e.target.matches&&e.target.matches('input,textarea'))return;if(e.code==='KeyF'&&!e.repeat&&nearMail){openMail();return}if(['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code))e.preventDefault();keys[e.code]=true;if(e.code==='Space')jumpReq=true;if(e.code==='KeyE'&&!e.repeat)toggleRide()});
 addEventListener('keyup',e=>keys[e.code]=false);
 addEventListener('blur',()=>{for(const k in keys)keys[k]=false;jumpReq=false});
 const stick=document.getElementById('stick'),knob=document.getElementById('knob');
@@ -728,6 +740,56 @@ document.querySelectorAll('[data-emote]').forEach(b=>b.addEventListener('click',
   emoteMenu.hidden=true;
   emoteToggle.setAttribute('aria-expanded','false');
 }));
+const chatToggle=$('chatToggle'),chatPanel=$('chatPanel'),chatLog=$('chatLog'),chatForm=$('chatForm'),chatInput=$('chatInput');
+let localTyping=false,typingIdleTimer=0;
+const tfLocalPopup={avatar:hero};
+function tfAddChatLine(name,text){
+  const line=document.createElement('div');line.className='chatLine';
+  const sender=document.createElement('b');sender.textContent=`${name}:`;
+  const message=document.createElement('span');message.textContent=text;
+  line.append(sender,message);chatLog.append(line);
+  while(chatLog.children.length>30)chatLog.firstElementChild.remove();
+  chatLog.scrollTop=chatLog.scrollHeight;
+}
+function tfSetLocalTyping(isTyping){
+  clearTimeout(typingIdleTimer);
+  if(isTyping){
+    localTyping=true;
+    if(tfRoom)tfRoom.send('typing',{typing:true});
+    typingIdleTimer=setTimeout(()=>tfSetLocalTyping(false),1600);
+  }else if(localTyping){
+    localTyping=false;
+    if(tfRoom)tfRoom.send('typing',{typing:false});
+  }
+}
+function tfCloseChat(){
+  tfSetLocalTyping(false);chatPanel.hidden=true;
+  chatToggle.setAttribute('aria-expanded','false');chatInput.blur();
+}
+chatToggle.addEventListener('click',()=>{
+  chatPanel.hidden=!chatPanel.hidden;
+  chatToggle.setAttribute('aria-expanded',String(!chatPanel.hidden));
+  if(chatPanel.hidden)tfSetLocalTyping(false);else chatInput.focus();
+});
+chatInput.addEventListener('input',()=>tfSetLocalTyping(chatInput.value.trim().length>0));
+chatInput.addEventListener('blur',()=>tfSetLocalTyping(false));
+addEventListener('blur',()=>tfSetLocalTyping(false));
+chatForm.addEventListener('submit',e=>{
+  e.preventDefault();
+  const text=chatInput.value.trim();
+  tfSetLocalTyping(false);
+  if(!text)return;
+  if(!tfRoom){tfAddChatLine('System','Chat is not connected yet.');return}
+  tfRoom.send('chat',{text});
+  chatInput.value='';
+});
+addEventListener('keydown',e=>{
+  if(e.code==='Enter'&&playing&&chatPanel.hidden){
+    e.preventDefault();chatPanel.hidden=false;chatToggle.setAttribute('aria-expanded','true');chatInput.focus();
+  }else if(e.code==='Escape'&&!chatPanel.hidden){
+    e.preventDefault();tfCloseChat();
+  }
+});
 function tfPoseEmote(r,type,dt,now){
   if(!r||!r.rig)return;
   const q=r.rig;
@@ -737,6 +799,26 @@ function tfPoseEmote(r,type,dt,now){
   else if(type==='dance'){q.armL.rotation.x=-1.8+k*.5;q.armR.rotation.x=-1.8-k*.5;q.armL.rotation.z=.5;q.armR.rotation.z=-.5;q.body.rotation.z=Math.sin(now*7)*.25;q.hipL.rotation.z=Math.sin(now*7)*.15;q.hipR.rotation.z=-Math.sin(now*7)*.15;}
   else if(type==='laugh'){q.body.position.y+=Math.abs(k)*.06;q.head.rotation.x=.35+Math.sin(now*10)*.08;q.armL.rotation.x=-1.2;q.armR.rotation.x=-1.2;}
   else if(type==='cheer'){q.armL.rotation.x=-2.8+Math.sin(now*8)*.15;q.armR.rotation.x=-2.8-Math.sin(now*8)*.15;q.armL.rotation.z=.25;q.armR.rotation.z=-.25;}
+}
+function tfClearPopup(owner,key){
+  const popup=owner[key];if(!popup)return;
+  owner.avatar.remove(popup);
+  if(popup.material.map)popup.material.map.dispose();
+  popup.material.dispose();owner[key]=null;
+}
+function tfShowPopup(owner,key,text,kind,duration){
+  tfClearPopup(owner,key);
+  const c=document.createElement('canvas');c.width=512;c.height=128;
+  const ctx=c.getContext('2d');
+  ctx.fillStyle=kind==='typing'?'rgba(255,210,63,.95)':'rgba(35,25,65,.9)';
+  ctx.beginPath();if(ctx.roundRect)ctx.roundRect(8,8,496,112,30);else ctx.rect(8,8,496,112);ctx.fill();
+  const chars=Array.from(String(text)),first=chars.slice(0,34).join(''),second=chars.slice(34,68).join('');
+  ctx.fillStyle=kind==='typing'?'#2b2350':'#fff';ctx.font='bold 30px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+  ctx.fillText(first,256,second?46:64,460);
+  if(second)ctx.fillText(second+(chars.length>68?'…':''),256,84,460);
+  const sprite=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(c),transparent:true,depthTest:false}));
+  sprite.scale.set(2.8,.7,1);sprite.position.y=3.35;sprite.renderOrder=10;
+  owner.avatar.add(sprite);owner[key]=sprite;owner[`${key}Until`]=performance.now()+duration;
 }
 function tfLabel(name) {
   const c = document.createElement('canvas');
@@ -882,6 +964,7 @@ function tfAddRemote(id, p) {
     speed: 0,
     targetSpeed: Math.max(0, Math.min(12, Number(p.speed) || 0)),
     phase: 0,
+    chatBubble: null, chatBubbleUntil: 0, typingBubble: null, typingBubbleUntil: 0,
     y: Number(p.y) || 0,
     tx: Number(p.x) || 0, ty: Number(p.y) || 0, tz: Number(p.z) || 0, tyaw: Number(p.yaw) || 0,
     lastX: Number(p.x) || 0,
@@ -1091,6 +1174,7 @@ function tfAnimateRemote(r, dt, time) {
 function tfRemoveRemote(id) {
   const r = tfRemote.get(id);
   if (r) {
+    tfClearPopup(r,'chatBubble');tfClearPopup(r,'typingBubble');
     S.remove(r.avatar);
     if (r.bike) S.remove(r.bike.g);
     if (r.ele) S.remove(r.ele.g);
@@ -1125,6 +1209,25 @@ function tfRemoveRemote(id) {
         r.avatar.userData.emoteBaseY=r.avatar.position.y;
       }
     });
+    tfRoom.onMessage('typing', data => {
+      if(!data||data.sessionId===tfRoom.sessionId)return;
+      const r=tfRemote.get(data.sessionId);if(!r)return;
+      if(data.typing===true){
+        if(!r.typingBubble)tfShowPopup(r,'typingBubble','Typing...','typing',2400);
+        else r.typingBubbleUntil=performance.now()+2400;
+      }else tfClearPopup(r,'typingBubble');
+    });
+    tfRoom.onMessage('chat', data => {
+      if(!data||typeof data.text!=='string')return;
+      const text=data.text.trim();if(!text)return;
+      const name=String(data.name||'Guest').slice(0,18);
+      tfAddChatLine(name,text);
+      if(data.sessionId===tfRoom.sessionId)tfShowPopup(tfLocalPopup,'chatBubble',text,'chat',3500);
+      else{
+        const r=tfRemote.get(data.sessionId);
+        if(r)tfShowPopup(r,'chatBubble',text,'chat',3500);
+      }
+    });
 callbacks.onAdd("players", (p, id) => {
   if (id === tfRoom.sessionId) return;
 
@@ -1156,7 +1259,7 @@ function loop(){
   const dt=Math.min(clock.getDelta(),.05);t+=dt;
   let sx=(keys.KeyD||keys.ArrowRight?1:0)-(keys.KeyA||keys.ArrowLeft?1:0)+jx;
   let fz=(keys.KeyW||keys.ArrowUp?1:0)-(keys.KeyS||keys.ArrowDown?1:0)-jy;
-  if(!playing||mailOpen){sx=fz=0;jumpReq=false;if(!playing)yaw+=dt*.7}
+  if(!playing||mailOpen||!chatPanel.hidden){sx=fz=0;jumpReq=false;if(!playing)yaw+=dt*.7}
   const l=Math.hypot(sx,fz);if(l>1){sx/=l;fz/=l}
   face-=sx*(riding?1.9:eRide?1.4:2.6)*dt;
   const sprint=!!(keys.ShiftLeft||keys.ShiftRight),sp=riding?10:eRide?5.5:sprint?10:6,mv=fz>0?fz:fz*.5,mx=Math.sin(face)*mv,mz=Math.cos(face)*mv;
@@ -1210,8 +1313,11 @@ function loop(){
     armL.rotation.x=armR.rotation.x=-.9;elbL.rotation.x=elbR.rotation.x=-.3;
     hero.position.y=eleSeatY;body.position.y=Math.abs(Math.sin(eph))*.04;body.position.z=.16;body.rotation.x=.05;
   }else{body.position.z=0;hipL.rotation.z=hipR.rotation.z=0;hero.position.y=0}
+  if(tfLocalPopup.chatBubble&&performance.now()>=tfLocalPopup.chatBubbleUntil)tfClearPopup(tfLocalPopup,'chatBubble');
   tfRemote.forEach(r=>{
     tfAnimateRemote(r,dt,t);
+    if(r.chatBubble&&performance.now()>=r.chatBubbleUntil)tfClearPopup(r,'chatBubble');
+    if(r.typingBubble&&performance.now()>=r.typingBubbleUntil)tfClearPopup(r,'typingBubble');
     if(r.emote && performance.now()<r.emoteUntil)tfPoseEmote(r,r.emote,dt,t);
     else if(r.emote){r.emote='';r.rig.body.rotation.z=0;r.rig.head.rotation.x=-r.rig.body.rotation.x*.6;r.rig.armL.rotation.z=-.1;r.rig.armR.rotation.z=.1}
   });

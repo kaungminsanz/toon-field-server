@@ -20,6 +20,9 @@ const State = schema({
 const NAME_MAX = 18;
 const MOVE_MIN_MS = 25; // client sends about every 80 ms
 const EMOTE_MIN_MS = 500;
+const CHAT_MAX = 160;
+const CHAT_MIN_MS = 400;
+const TYPING_MIN_MS = 250;
 
 export class ToonFieldRoom extends Room {
   state = new State();
@@ -28,6 +31,9 @@ export class ToonFieldRoom extends Room {
   private lastMove = new Map<string, number>();
   private lastPosition = new Map<string, { x: number; z: number; at: number }>();
   private lastEmote = new Map<string, number>();
+  private lastChat = new Map<string, number>();
+  private lastTyping = new Map<string, number>();
+  private typingPlayers = new Set<string>();
 
   onCreate() {
     this.onMessage("move", (client, data: any) => {
@@ -100,6 +106,44 @@ export class ToonFieldRoom extends Room {
         type: data.type,
       });
     });
+
+    this.onMessage("typing", (client, data: any) => {
+      if (!data || typeof data.typing !== "boolean" || !this.state.players.has(client.sessionId)) return;
+
+      const now = Date.now();
+      if (data.typing) {
+        if (now - (this.lastTyping.get(client.sessionId) ?? 0) < TYPING_MIN_MS) return;
+        this.lastTyping.set(client.sessionId, now);
+        this.typingPlayers.add(client.sessionId);
+      } else {
+        this.lastTyping.delete(client.sessionId);
+        if (!this.typingPlayers.delete(client.sessionId)) return;
+      }
+
+      this.broadcast("typing", {
+        sessionId: client.sessionId,
+        typing: data.typing,
+      });
+    });
+
+    this.onMessage("chat", (client, data: any) => {
+      if (!data || typeof data.text !== "string") return;
+      const player = this.state.players.get(client.sessionId);
+      if (!player) return;
+
+      const text = [...data.text.replace(/\s+/g, " ").trim()].slice(0, CHAT_MAX).join("");
+      if (!text) return;
+
+      const now = Date.now();
+      if (now - (this.lastChat.get(client.sessionId) ?? 0) < CHAT_MIN_MS) return;
+      this.lastChat.set(client.sessionId, now);
+
+      this.broadcast("chat", {
+        sessionId: client.sessionId,
+        name: player.name,
+        text,
+      });
+    });
   }
 
   onJoin(client: Client, options?: any) {
@@ -113,9 +157,14 @@ export class ToonFieldRoom extends Room {
   }
 
   onLeave(client: Client) {
+    if (this.typingPlayers.delete(client.sessionId)) {
+      this.broadcast("typing", { sessionId: client.sessionId, typing: false });
+    }
     this.state.players.delete(client.sessionId);
     this.lastMove.delete(client.sessionId);
     this.lastPosition.delete(client.sessionId);
     this.lastEmote.delete(client.sessionId);
+    this.lastChat.delete(client.sessionId);
+    this.lastTyping.delete(client.sessionId);
   }
 }
