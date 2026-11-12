@@ -1165,17 +1165,18 @@ function loop(){
   if(rad>590){hero.position.x*=590/rad;hero.position.z*=590/rad}
   const spd=Math.hypot(vx,vz),moving=spd>.4;
   const moveYaw=spd>.15?Math.atan2(vx,vz):face;
+  const characterYaw=(riding||eRide)?moveYaw:face;
   
   if(jumpReq&&py<=0&&!eRide){vy=8}jumpReq=false;
   vy-=22*dt;py+=vy*dt;if(py<0){py=0;vy=0}
-  hero.rotation.y=face;
+  hero.rotation.y=characterYaw;
  if(tfRoom && t-tfLastSend>.05){
   tfLastSend=t;
   tfRoom.send('move',{
   x:hero.position.x,
   y:eRide?hero.position.y:py,
   z:hero.position.z,
-  yaw:face,
+  yaw:characterYaw,
   rideYaw:riding?tfBikeYaw(moveYaw):moveYaw,
   speed:spd,
   direction:driveDirection,
@@ -1236,7 +1237,7 @@ function loop(){
   gT.value=t;updEle(dt,spd,moveYaw);updMail();loveHeart.rotation.y=Math.sin(t*.8)*.5;loveHeart.scale.setScalar(1+Math.sin(t*3)*.04);const gi=Math.round(hero.position.x/GW),gj=Math.round(hero.position.z/GW);
   if(gi!==lgi||gj!==lgj){lgi=gi;lgj=gj;placeFlowers(gi*GP,gj*GP)}
   gGroup.position.set(gi*GW,0,gj*GW);
-  let dd=face+Math.PI+yaw-camYaw;dd=Math.atan2(Math.sin(dd),Math.cos(dd));camYaw+=dd*Math.min(1,5*dt);
+  let dd=characterYaw+Math.PI+yaw-camYaw;dd=Math.atan2(Math.sin(dd),Math.cos(dd));camYaw+=dd*Math.min(1,5*dt);
   const wantedCdist=eRide?Math.max(cdist,18):cdist;
   smoothCdist+=(wantedCdist-smoothCdist)*(1-Math.exp(-dt*3));
   cam.position.set(
