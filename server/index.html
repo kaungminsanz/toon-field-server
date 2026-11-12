@@ -270,8 +270,8 @@ const eLegs=[[-1,1],[1,1],[-1,-1],[1,-1]].map(a=>{const g=new THREE.Group();g.po
 const esh=new THREE.Mesh(new THREE.CircleGeometry(1,28),new THREE.MeshBasicMaterial({color:0,transparent:true,opacity:.15}));
 esh.rotation.x=-Math.PI/2;esh.position.y=.02;esh.scale.set(1.8,2.6,1);ele.add(esh);
 let eph=0;
-function updEle(dt,spd){
-  if(eRide){ele.position.x=hero.position.x;ele.position.z=hero.position.z;ele.rotation.y=face;eph+=dt*spd*1.1}
+function updEle(dt,spd,direction=1){
+  if(eRide){ele.position.x=hero.position.x;ele.position.z=hero.position.z;ele.rotation.y=face;eph+=dt*spd*direction*1.1}
   sh.visible=!eRide;
   const amp=eRide?Math.min(1,spd/3):0,s=Math.sin(eph);
   eLegs.forEach((l,i)=>l.rotation.x=((i===0||i===3)?s:-s)*.36*amp);
@@ -507,6 +507,7 @@ function toggleRide(){if(!playing)return;
   rideBtn.textContent=(riding||eRide)?'GET OFF':'RIDE';
 }
 rideBtn.addEventListener('pointerdown',toggleRide);
+const tfBikeYaw=yaw=>yaw-Math.PI/2;
 let yaw=0,lx=0;
 let lookId=null,ly=0,pit=.5,cdist=12.5,smoothCdist=12.5;
 const touchPoints=new Map();let pinchDistance=0;
@@ -896,6 +897,12 @@ function tfAddRemote(id, p) {
   };
   tfRemote.set(id, remote);
   tfApplyRemoteLook(remote, p.look);
+  const rideYaw = Number(p.rideYaw);
+  remote.rideYaw = Number.isFinite(rideYaw)
+    ? rideYaw
+    : remote.avatar.rotation.y - (remote.ride === 'bike' ? Math.PI / 2 : 0);
+  remote.targetRideYaw = remote.rideYaw;
+  remote.direction = p.direction === -1 ? -1 : 1;
 }
 
 function tfUpdateRemote(id, p) {
@@ -911,7 +918,16 @@ function tfUpdateRemote(id, p) {
   const nextZ = Number(p.z) || 0;
   const now = Date.now();
   const elapsed = Math.max(.05, (now - (r.lastMotionAt || now)) / 1000);
-  const distance = Math.hypot(nextX - r.lastX, nextZ - r.lastZ);
+  const deltaX = nextX - r.lastX, deltaZ = nextZ - r.lastZ;
+  const distance = Math.hypot(deltaX, deltaZ);
+  const nextYaw = Number(p.yaw) || 0;
+  const reportedDirection = Number(p.direction);
+  if (reportedDirection === -1 || reportedDirection === 1) {
+    r.direction = reportedDirection;
+  } else {
+    const forwardDistance = deltaX * Math.sin(nextYaw) + deltaZ * Math.cos(nextYaw);
+    if (Math.abs(forwardDistance) > 0.001) r.direction = forwardDistance < 0 ? -1 : 1;
+  }
   const reportedSpeed = Number(p.speed);
   r.targetSpeed = Number.isFinite(reportedSpeed)
     ? Math.max(0, Math.min(12, reportedSpeed))
@@ -922,7 +938,7 @@ function tfUpdateRemote(id, p) {
   r.lastMotionAt = now;
   r.y = nextY;
   // don't snap: store the target, tfAnimateRemote glides toward it every frame
-  r.tx = nextX; r.ty = nextY; r.tz = nextZ; r.tyaw = Number(p.yaw) || 0;
+  r.tx = nextX; r.ty = nextY; r.tz = nextZ; r.tyaw = nextYaw;
 
   const newName = String(p.name || 'Guest');
   if (r.name !== newName) {
@@ -939,6 +955,10 @@ function tfUpdateRemote(id, p) {
   if (typeof p.look === 'string' && p.look !== r.lookRaw) {
     tfApplyRemoteLook(r, p.look);
   }
+  const rideYaw = Number(p.rideYaw);
+  r.targetRideYaw = Number.isFinite(rideYaw)
+    ? rideYaw
+    : r.tyaw - (r.ride === 'bike' ? Math.PI / 2 : 0);
   if (r.label) r.label.material.rotation = 0;
 }
 
@@ -989,10 +1009,10 @@ function tfRideRemote(r, dt, time) {
     const b = tfEnsureRemoteBike(r);
     b.g.visible = true;
     b.g.position.set(av.position.x, av.position.y, av.position.z);
-    b.g.rotation.y = av.rotation.y - Math.PI / 2;
-    b.pd += dt * sp * 1.3;
+    b.g.rotation.y = r.rideYaw;
+    b.pd += dt * sp * r.direction * 1.3;
     const c = Math.sin(b.pd);
-    b.wheels.forEach(w => { w.rotation.z -= sp * dt / .45; });
+    b.wheels.forEach(w => { w.rotation.z -= sp * dt * r.direction / .45; });
     q.hipL.rotation.x = -.95 + c * .45; q.hipR.rotation.x = -.95 - c * .45;
     q.kneeL.rotation.x = 1.05 - c * .5; q.kneeR.rotation.x = 1.05 + c * .5;
     q.armL.rotation.x = q.armR.rotation.x = -1.15;
@@ -1002,8 +1022,8 @@ function tfRideRemote(r, dt, time) {
     const e = tfEnsureRemoteEle(r);
     e.g.visible = true;
     e.g.position.set(av.position.x, 0, av.position.z);
-    e.g.rotation.y = av.rotation.y;
-    e.eph += dt * sp * 1.1;
+    e.g.rotation.y = r.rideYaw;
+    e.eph += dt * sp * r.direction * 1.1;
     const amp = Math.min(1, sp / 3), s = Math.sin(e.eph);
     e.legs.forEach((l, i) => { if (l) l.rotation.x = ((i === 0 || i === 3) ? s : -s) * .36 * amp; });
     if (e.body) e.body.position.y = Math.abs(Math.cos(e.eph)) * .07 * amp + Math.sin(time * 1.6) * .015;
@@ -1034,6 +1054,9 @@ function tfAnimateRemote(r, dt, time) {
     av.position.y += (r.ty - av.position.y) * k;
     let dyaw = r.tyaw - av.rotation.y; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
     av.rotation.y += dyaw * k;
+    let dRideYaw = r.targetRideYaw - r.rideYaw;
+    dRideYaw = Math.atan2(Math.sin(dRideYaw), Math.cos(dRideYaw));
+    r.rideYaw += dRideYaw * k;
     const targetSpeed = Date.now() - r.lastMotionAt > 150 ? 0 : r.targetSpeed;
     r.speed += (targetSpeed - r.speed) * (1 - Math.exp(-dt * 8));
   }
@@ -1125,7 +1148,7 @@ callbacks.onRemove("players", (p, id) => {
 })();
 
 // loop
-let vy=0,py=0,t=0,face=0,blink=0,vx=0,vz=0,ph=0,camYaw=Math.PI;const clock=new THREE.Clock();
+let vy=0,py=0,t=0,face=0,blink=0,vx=0,vz=0,ph=0,camYaw=Math.PI,driveDirection=1;const clock=new THREE.Clock();
 function loop(){
   requestAnimationFrame(loop);
   const dt=Math.min(clock.getDelta(),.05);t+=dt;
@@ -1136,6 +1159,8 @@ function loop(){
   face-=sx*(riding?1.9:eRide?1.4:2.6)*dt;
   const sprint=!!(keys.ShiftLeft||keys.ShiftRight),sp=riding?10:eRide?5.5:sprint?10:6,mv=fz>0?fz:fz*.5,mx=Math.sin(face)*mv,mz=Math.cos(face)*mv;
   const kk=Math.min(1,9*dt);vx+=(mx*sp-vx)*kk;vz+=(mz*sp-vz)*kk;hero.position.x+=vx*dt;hero.position.z+=vz*dt;
+  const forwardSpeed=vx*Math.sin(face)+vz*Math.cos(face);
+  if(Math.abs(forwardSpeed)>.1)driveDirection=forwardSpeed<0?-1:1;
   const rad=Math.hypot(hero.position.x,hero.position.z);
   if(rad>590){hero.position.x*=590/rad;hero.position.z*=590/rad}
   const spd=Math.hypot(vx,vz),moving=spd>.4;
@@ -1150,7 +1175,9 @@ function loop(){
   y:eRide?hero.position.y:py,
   z:hero.position.z,
   yaw:face,
+  rideYaw:riding?tfBikeYaw(face):face,
   speed:spd,
+  direction:driveDirection,
   name:(look.name || pname.value || 'Guest').slice(0,18),
   look:JSON.stringify(Object.assign({},look,{ride:riding?'bike':eRide?'ele':''}))
 });
@@ -1164,13 +1191,13 @@ function loop(){
   armL.rotation.z=-.1;armR.rotation.z=.1;
   elbL.rotation.x=elbR.rotation.x=-.3-.3*amp;
   torso.scale.x=torso.scale.z=1+Math.sin(t*2)*.012;
-  if(riding){pd+=dt*spd*1.3;const c=Math.sin(pd);
+  if(riding){pd+=dt*spd*driveDirection*1.3;const c=Math.sin(pd);
     hipL.rotation.x=-.95+c*.45;hipR.rotation.x=-.95-c*.45;
     kneeL.rotation.x=1.05-c*.5;kneeR.rotation.x=1.05+c*.5;
     armL.rotation.x=armR.rotation.x=-1.15;elbL.rotation.x=elbR.rotation.x=-.2;
     body.position.y=py+.1;body.position.z=-.22;body.rotation.x=.2;
-    bike.position.set(hero.position.x,py,hero.position.z);bike.rotation.y=face-Math.PI/2;
-    wheels.forEach(w=>w.rotation.z-=spd*dt/.45);
+    bike.position.set(hero.position.x,py,hero.position.z);bike.rotation.y=tfBikeYaw(face);
+    wheels.forEach(w=>w.rotation.z-=spd*dt*driveDirection/.45);
   }else if(eRide){
     hipL.rotation.x=hipR.rotation.x=-1.05;hipL.rotation.z=-.55;hipR.rotation.z=.55;kneeL.rotation.x=kneeR.rotation.x=1.1;
     armL.rotation.x=armR.rotation.x=-.9;elbL.rotation.x=elbR.rotation.x=-.3;
@@ -1183,8 +1210,8 @@ function loop(){
   });
   {let eT=false,bT=false;
     tfRemote.forEach(r=>{
-      if(r.ride==='ele'){eT=true;remoteEleLast={x:r.avatar.position.x,z:r.avatar.position.z,ry:r.avatar.rotation.y}}
-      else if(r.ride==='bike'){bT=true;remoteBikeLast={x:r.avatar.position.x,z:r.avatar.position.z,ry:r.avatar.rotation.y-Math.PI/2}}
+      if(r.ride==='ele'){eT=true;remoteEleLast={x:r.avatar.position.x,z:r.avatar.position.z,ry:r.rideYaw}}
+      else if(r.ride==='bike'){bT=true;remoteBikeLast={x:r.avatar.position.x,z:r.avatar.position.z,ry:r.rideYaw}}
     });
     // when the rider gets off (or leaves), our copy appears where they left it
     if(remoteEleTaken&&!eT&&remoteEleLast&&!eRide){ele.position.set(remoteEleLast.x,0,remoteEleLast.z);ele.rotation.y=remoteEleLast.ry}
@@ -1205,7 +1232,7 @@ function loop(){
   pts.position.set(Math.round(hero.position.x/200)*200,0,Math.round(hero.position.z/200)*200);
   for(let i=0;i<N;i++){const dx=pp[i*3]+pts.position.x-hero.position.x,dz=pp[i*3+2]+pts.position.z-hero.position.z;if(Math.abs(dx)>100)pp[i*3]-=Math.sign(dx)*200;if(Math.abs(dz)>100)pp[i*3+2]-=Math.sign(dz)*200}
   p.needsUpdate=true;
-  gT.value=t;updEle(dt,spd);updMail();loveHeart.rotation.y=Math.sin(t*.8)*.5;loveHeart.scale.setScalar(1+Math.sin(t*3)*.04);const gi=Math.round(hero.position.x/GW),gj=Math.round(hero.position.z/GW);
+  gT.value=t;updEle(dt,spd,driveDirection);updMail();loveHeart.rotation.y=Math.sin(t*.8)*.5;loveHeart.scale.setScalar(1+Math.sin(t*3)*.04);const gi=Math.round(hero.position.x/GW),gj=Math.round(hero.position.z/GW);
   if(gi!==lgi||gj!==lgj){lgi=gi;lgj=gj;placeFlowers(gi*GP,gj*GP)}
   gGroup.position.set(gi*GW,0,gj*GW);
   let dd=face+Math.PI+yaw-camYaw;dd=Math.atan2(Math.sin(dd),Math.cos(dd));camYaw+=dd*Math.min(1,5*dt);

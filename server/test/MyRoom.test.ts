@@ -27,7 +27,7 @@ describe("testing your Colyseus app", () => {
     assert.deepStrictEqual(client1.state.toJSON(), { mySynchronizedProperty: "Hello world" });
   });
 
-  it("synchronizes movement speed for remote animation", async () => {
+  it("synchronizes ride facing and direction for remote players", async () => {
     const room = await colyseus.createRoom("toon_field", {});
     const client = await colyseus.connectTo(room);
     const observer = await colyseus.connectTo(room);
@@ -38,27 +38,42 @@ describe("testing your Colyseus app", () => {
       y: 0,
       z: 0,
       yaw: 0,
+      rideYaw: 0.8,
       speed: 4.5,
+      direction: -1,
       look: JSON.stringify({ ride: "ele" }),
     });
     await nextPatch;
 
     let player = observer.state.players.get(client.sessionId);
+    assert(Math.abs(player.rideYaw - 0.8) < 0.00001);
     assert.strictEqual(player.speed, 4.5);
+    assert.strictEqual(player.direction, -1);
     assert.strictEqual(JSON.parse(player.look).ride, "ele");
 
     await new Promise((resolve) => setTimeout(resolve, 30));
     nextPatch = observer.waitForNextPatch();
-    client.send("move", { x: 2, y: 0, z: 0, yaw: 0, speed: 20 });
+    client.send("move", {
+      x: 2,
+      y: 0,
+      z: 0,
+      yaw: 0,
+      rideYaw: 1.5,
+      speed: 20,
+      direction: 1,
+    });
     await nextPatch;
     player = observer.state.players.get(client.sessionId);
+    assert.strictEqual(player.rideYaw, 1.5);
     assert.strictEqual(player.speed, 12);
+    assert.strictEqual(player.direction, 1);
 
     await new Promise((resolve) => setTimeout(resolve, 30));
     nextPatch = observer.waitForNextPatch();
-    client.send("move", { x: 2.1, y: 0, z: 0, yaw: 0 });
+    client.send("move", { x: 2.1, y: 0, z: -1, yaw: 0 });
     await nextPatch;
     player = observer.state.players.get(client.sessionId);
     assert(player.speed > 0);
+    assert.strictEqual(player.direction, -1);
   });
 });
