@@ -843,7 +843,7 @@ function tfAddRemote(id, p) {
     name: String(p.name || 'Guest'),
     lookRaw: '',
     speed: 0,
-    targetSpeed: 0,
+    targetSpeed: Math.max(0, Math.min(12, Number(p.speed) || 0)),
     phase: 0,
     y: Number(p.y) || 0,
     tx: Number(p.x) || 0, ty: Number(p.y) || 0, tz: Number(p.z) || 0, tyaw: Number(p.yaw) || 0,
@@ -878,7 +878,10 @@ function tfUpdateRemote(id, p) {
   const now = Date.now();
   const elapsed = Math.max(.05, (now - (r.lastMotionAt || now)) / 1000);
   const distance = Math.hypot(nextX - r.lastX, nextZ - r.lastZ);
-  r.targetSpeed = Math.min(12, distance / elapsed);
+  const reportedSpeed = Number(p.speed);
+  r.targetSpeed = Number.isFinite(reportedSpeed)
+    ? Math.max(0, Math.min(12, reportedSpeed))
+    : Math.min(12, distance / elapsed);
   r.lastX = nextX;
   r.lastY = nextY;
   r.lastZ = nextZ;
@@ -1113,6 +1116,7 @@ function loop(){
   y:eRide?hero.position.y:py,
   z:hero.position.z,
   yaw:face,
+  speed:spd,
   name:(look.name || pname.value || 'Guest').slice(0,18),
   look:JSON.stringify(Object.assign({},look,{ride:riding?'bike':eRide?'ele':''}))
 });

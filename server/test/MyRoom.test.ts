@@ -26,4 +26,39 @@ describe("testing your Colyseus app", () => {
 
     assert.deepStrictEqual(client1.state.toJSON(), { mySynchronizedProperty: "Hello world" });
   });
+
+  it("synchronizes movement speed for remote animation", async () => {
+    const room = await colyseus.createRoom("toon_field", {});
+    const client = await colyseus.connectTo(room);
+    const observer = await colyseus.connectTo(room);
+
+    let nextPatch = observer.waitForNextPatch();
+    client.send("move", {
+      x: 1,
+      y: 0,
+      z: 0,
+      yaw: 0,
+      speed: 4.5,
+      look: JSON.stringify({ ride: "ele" }),
+    });
+    await nextPatch;
+
+    let player = observer.state.players.get(client.sessionId);
+    assert.strictEqual(player.speed, 4.5);
+    assert.strictEqual(JSON.parse(player.look).ride, "ele");
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    nextPatch = observer.waitForNextPatch();
+    client.send("move", { x: 2, y: 0, z: 0, yaw: 0, speed: 20 });
+    await nextPatch;
+    player = observer.state.players.get(client.sessionId);
+    assert.strictEqual(player.speed, 12);
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    nextPatch = observer.waitForNextPatch();
+    client.send("move", { x: 2.1, y: 0, z: 0, yaw: 0 });
+    await nextPatch;
+    player = observer.state.players.get(client.sessionId);
+    assert(player.speed > 0);
+  });
 });

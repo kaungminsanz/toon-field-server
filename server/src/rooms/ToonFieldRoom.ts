@@ -6,6 +6,7 @@ const Player = schema({
   y: t.number().default(0),
   z: t.number().default(0),
   yaw: t.number().default(0),
+  speed: t.number().default(0),
   name: t.string().default("Guest"),
   look: t.string().default("{}"),
 }, "Player");
@@ -23,6 +24,7 @@ export class ToonFieldRoom extends Room {
   maxClients = 30;
 
   private lastMove = new Map<string, number>();
+  private lastPosition = new Map<string, { x: number; z: number; at: number }>();
   private lastEmote = new Map<string, number>();
 
   onCreate() {
@@ -38,6 +40,16 @@ export class ToonFieldRoom extends Room {
       if (Number.isFinite(data.y)) p.y = Math.max(0, Math.min(20, data.y));
       if (Number.isFinite(data.z)) p.z = Math.max(-590, Math.min(590, data.z));
       if (Number.isFinite(data.yaw)) p.yaw = data.yaw % (Math.PI * 2);
+      const previousPosition = this.lastPosition.get(client.sessionId);
+      const elapsed = previousPosition
+        ? Math.max((now - previousPosition.at) / 1000, MOVE_MIN_MS / 1000)
+        : MOVE_MIN_MS / 1000;
+      const measuredSpeed = previousPosition
+        ? Math.hypot(p.x - previousPosition.x, p.z - previousPosition.z) / elapsed
+        : 0;
+      const speed = Number.isFinite(data.speed) ? data.speed : measuredSpeed;
+      p.speed = Math.max(0, Math.min(12, speed));
+      this.lastPosition.set(client.sessionId, { x: p.x, z: p.z, at: now });
 
       if (typeof data.name === "string") {
         p.name = data.name.slice(0, NAME_MAX);
@@ -79,11 +91,13 @@ export class ToonFieldRoom extends Room {
         ? options.name.slice(0, NAME_MAX)
         : "Guest";
     this.state.players.set(client.sessionId, player);
+    this.lastPosition.set(client.sessionId, { x: player.x, z: player.z, at: Date.now() });
   }
 
   onLeave(client: Client) {
     this.state.players.delete(client.sessionId);
     this.lastMove.delete(client.sessionId);
+    this.lastPosition.delete(client.sessionId);
     this.lastEmote.delete(client.sessionId);
   }
 }
