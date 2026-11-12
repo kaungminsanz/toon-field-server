@@ -213,7 +213,7 @@ treeBranch([0,8,0],[0,14,-.3],.55);
 // elephant
 const ele=new THREE.Group();ele.position.set(-6,0,-31);ele.rotation.y=.5;S.add(ele);
 const eBody=new THREE.Group();ele.add(eBody);
-const eg=0x9eb4cc,eleSeatY=2.3;
+const eg=0x9eb4cc,eleSeatY=3.45;
 eBody.add(inked(new THREE.SphereGeometry(1,32,24),eg,[0,2.2,0],[1.1,1.05,1.55]));
 eBody.add(inked(new THREE.SphereGeometry(.75,28,20),eg,[0,2.55,1.75],[1,1,.95]));
 eBody.add(inked(new THREE.SphereGeometry(.9,24,12),0xff4d6d,[0,3.17,.2],[1,.2,1]));
@@ -475,7 +475,7 @@ function toggleRide(){if(!playing)return;
 }
 rideBtn.addEventListener('pointerdown',toggleRide);
 let yaw=0,lx=0;
-let lookId=null,ly=0,pit=.5,cdist=12.5;
+let lookId=null,ly=0,pit=.5,cdist=12.5,smoothCdist=12.5;
 cv.addEventListener('wheel',e=>{cdist=Math.min(30,Math.max(5,cdist+e.deltaY*.01));e.preventDefault()},{passive:false});
 cv.addEventListener('pointerdown',e=>{if(lookId===null){lookId=e.pointerId;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId)}});
 cv.addEventListener('pointermove',e=>{if(e.pointerId===lookId){yaw-=(e.clientX-lx)*.006;pit=Math.min(1.4,Math.max(.08,pit+(e.clientY-ly)*.005));lx=e.clientX;ly=e.clientY}});
@@ -1110,8 +1110,15 @@ function loop(){
   if(gi!==lgi||gj!==lgj){lgi=gi;lgj=gj;placeFlowers(gi*GP,gj*GP)}
   gGroup.position.set(gi*GW,0,gj*GW);
   let dd=face+Math.PI+yaw-camYaw;dd=Math.atan2(Math.sin(dd),Math.cos(dd));camYaw+=dd*Math.min(1,5*dt);
-  cam.position.set(hero.position.x+Math.sin(camYaw)*Math.cos(pit)*cdist,Math.sin(pit)*cdist,hero.position.z+Math.cos(camYaw)*Math.cos(pit)*cdist);
-  lookY+=((playing?1.5:-.45)-lookY)*Math.min(1,5*dt);cam.lookAt(hero.position.x,lookY,hero.position.z);
+  const wantedCdist=eRide?Math.max(cdist,18):cdist;
+  smoothCdist+=(wantedCdist-smoothCdist)*(1-Math.exp(-dt*3));
+  cam.position.set(
+    hero.position.x+Math.sin(camYaw)*Math.cos(pit)*smoothCdist,
+    hero.position.y+Math.sin(pit)*smoothCdist,
+    hero.position.z+Math.cos(camYaw)*Math.cos(pit)*smoothCdist
+  );
+  const targetLookY=hero.position.y+(playing?1.5:-.45);
+  lookY+=(targetLookY-lookY)*(1-Math.exp(-dt*5));cam.lookAt(hero.position.x,lookY,hero.position.z);
   R.render(S,cam);
 }
 loop();
