@@ -354,7 +354,7 @@ const pelvisO=lathe([[0,.72],[.175,.72],[.185,.86],[.165,.93],[0,.93]],0x3b5bdb)
 const bib=inked(new THREE.BoxGeometry(.2,.2,.03),0x3b5bdb,[0,1.03,.155]);body.add(bib);reg(parts.bottom,['overalls'],bib,botTint);
 [-1,1].forEach(sd=>{const sp=inked(new THREE.BoxGeometry(.03,.3,.02),0x3b5bdb,[sd*.07,1.19,.172]);body.add(sp);reg(parts.bottom,['overalls'],sp,botTint)});
 // arms
-const mkArm=s=>{const a=new THREE.Group();a.position.set(s*.23,1.2,0);
+const mkArm=s=>{const a=new THREE.Group();a.position.set(s*.21,1.2,0);
   const ua=limb(.05,.3,0xf4f6ff);a.add(ua);reg(parts.top,['tshirt','shirt','collarless','taikpon','hoodie','striped'],ua,topTint);
   const us=limb(.05,.3,skin);a.add(us);reg(parts.top,['tank'],us,skinObjs);
   const f=limb(.04,.27,skin);skinObjs.push(f);f.position.y=-.3;a.add(f);
@@ -366,10 +366,10 @@ const mkLeg=s=>{const h=new THREE.Group();h.position.set(s*.09,.82,0);
   const th=limb(.075,.4,skin);skinObjs.push(th);h.add(th);
   const k=limb(.06,.38,0xffffff);k.position.y=-.4;k.add(inked(sph(.07,14,10),0x6b4a3a,[0,-.37,.06],[1,.7,1.9]));h.add(k);
   const add=(pr,keys,o,tl)=>{pr.add(o);return reg(parts.bottom,keys,o,tl)};
-  add(h,['shorts','overalls'],inked(cyl(.1,.108,.34),0x3b5bdb,[0,-.14,0]),botTint);
-  add(h,['jeans','capri'],inked(cyl(.105,.1,.46),0x3b5bdb,[0,-.2,0]),botTint);
-  add(k,['jeans'],inked(cyl(.09,.083,.34),0x3b5bdb,[0,-.17,0]),botTint);
-  add(k,['capri'],inked(cyl(.09,.087,.16),0x3b5bdb,[0,-.07,0]),botTint);
+  add(h,['shorts','overalls'],inked(cyl(.09,.098,.34),0x3b5bdb,[0,-.14,0]),botTint);
+  add(h,['jeans','capri'],inked(cyl(.095,.09,.46),0x3b5bdb,[0,-.2,0]),botTint);
+  add(k,['jeans'],inked(cyl(.08,.075,.34),0x3b5bdb,[0,-.17,0]),botTint);
+  add(k,['capri'],inked(cyl(.08,.075,.16),0x3b5bdb,[0,-.07,0]),botTint);
   add(h,['paso','acheik'],inked(cyl(.135,.13,.46),0x3b5bdb,[0,-.2,0]),botTint);
   add(k,['paso','acheik'],inked(cyl(.13,.125,.34),0x3b5bdb,[0,-.17,0]),botTint);
   add(k,['paso'],torusBand(.126,.016,0xf4f4f4,-.34));
@@ -422,7 +422,7 @@ const TH=0xe8c872;
 const decal=(x,y,r,col,sy=1,rot=0)=>{
   const zs=Math.sqrt(Math.max(.0004,.09-x*x-(y/1.04)*(y/1.04)));
   const m=new THREE.Mesh(new THREE.CircleGeometry(r,16),new THREE.MeshBasicMaterial({color:col,polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1}));
-  m.scale.y=sy;m.position.set(x,y,zs+.004);
+  m.scale.y=sy;m.position.set(x,y,zs+.006);
   m.rotation.order='YXZ';m.rotation.set(-Math.atan2(y/1.0816,Math.hypot(x,zs)),Math.atan2(x,zs),rot);
   head.add(m);return m};
 [-1,1].forEach(s=>{
@@ -441,9 +441,9 @@ reg(parts.thanaka,['full'],decal(0,-.17,.05,TH,.7));
   {const b=torusBand(.325,.065,hc,.17);b.position.z=-.02;H(['gaung'],b,1)}
   H(['gaung'],inked(sph(.085,14,12),hc,[.3,.2,.05]),1);
   {const t=inked(new THREE.ConeGeometry(.04,.2,8),hc,[.36,.1,.05]);t.rotation.z=-.7;H(['gaung'],t,1)}
-  H(['kamauk'],inked(cyl(.03,.6,.46,24),hc,[0,.4,0]),1);
+  H(['kamauk'],inked(cyl(.03,.35,.46,24),hc,[0,.4,0]),1);
   H(['kamauk'],inked(sph(.05,10,8),0xd4a017,[0,.65,0]));
-  H(['kamauk'],torusBand(.6,.02,0xd4a017,.17));
+  H(['kamauk'],torusBand(.355,.02,0xd4a017,.17));
   H(['cap'],inked(new THREE.SphereGeometry(.345,28,14,0,Math.PI*2,0,1.3),hc,[0,.07,-.02]),1);
   {const b=inked(cyl(.17,.17,.016,20),hc,[0,.15,.33],[1,1,.9]);b.rotation.x=.3;H(['cap'],b,1)}
 }
