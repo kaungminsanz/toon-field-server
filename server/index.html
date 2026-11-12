@@ -843,6 +843,7 @@ function tfAddRemote(id, p) {
     name: String(p.name || 'Guest'),
     lookRaw: '',
     speed: 0,
+    targetSpeed: 0,
     phase: 0,
     y: Number(p.y) || 0,
     tx: Number(p.x) || 0, ty: Number(p.y) || 0, tz: Number(p.z) || 0, tyaw: Number(p.yaw) || 0,
@@ -877,6 +878,7 @@ function tfUpdateRemote(id, p) {
   const now = Date.now();
   const elapsed = Math.max(.05, (now - (r.lastMotionAt || now)) / 1000);
   const distance = Math.hypot(nextX - r.lastX, nextZ - r.lastZ);
+  r.targetSpeed = Math.min(12, distance / elapsed);
   r.lastX = nextX;
   r.lastY = nextY;
   r.lastZ = nextZ;
@@ -995,9 +997,8 @@ function tfAnimateRemote(r, dt, time) {
     av.position.y += (r.ty - av.position.y) * k;
     let dyaw = r.tyaw - av.rotation.y; dyaw = Math.atan2(Math.sin(dyaw), Math.cos(dyaw));
     av.rotation.y += dyaw * k;
-    // speed from real smoothed motion, so legs/wheels/elephant steps match what you see
-    const inst = Math.hypot(av.position.x - ox, av.position.z - oz) / Math.max(dt, 1e-3);
-    r.speed += (Math.min(12, inst) - r.speed) * (1 - Math.exp(-dt * 8));
+    const targetSpeed = Date.now() - r.lastMotionAt > 150 ? 0 : r.targetSpeed;
+    r.speed += (targetSpeed - r.speed) * (1 - Math.exp(-dt * 8));
   }
   const q = r.rig;
   const air = r.y > 0.12;
