@@ -22,9 +22,10 @@ multiplayer to work.
 
 Voice chat is opt-in and only connects players within 20 game units. WebRTC
 uses the `voice-ice-servers` meta tag in `index.html`; its value must be a JSON
-array of ICE server objects. The default empty array uses direct host candidates,
-which may not connect players behind NAT. Configure STUN/TURN servers you
-control for reliable internet connectivity; do not put long-lived TURN
+array of ICE server objects. It defaults to Google's public STUN service for
+NAT discovery; STUN sees the connecting clients' network addresses, while voice
+audio remains peer-to-peer. Replace it with infrastructure you control if
+needed. Some restrictive networks require TURN; do not put long-lived TURN
 credentials in the public HTML.
 
 ## Structure

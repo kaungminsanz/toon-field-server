@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><title>Toon Field</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="colyseus-server-url" content="wss://automatic-journey-9456vq757ggc7r9q-2567.app.github.dev">
-<meta name="voice-ice-servers" content="[]">
+<meta name="voice-ice-servers" content='[{"urls":"stun:stun.l.google.com:19302"}]'>
 <style>
 :root{--hud:#2b2350;--hudbg:rgba(255,255,255,.65);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--hud:#f3eeff;--hudbg:rgba(30,24,60,.6)}}
@@ -808,6 +808,15 @@ const voiceIceServers=(()=>{
   }catch(error){console.error('Invalid voice ICE server configuration:',error);return[]}
 })();
 function tfVoiceStatus(text){voiceStatus.textContent=text}
+function tfRefreshVoiceStatus(){
+  if(!voiceEnabled)return;
+  const states=[...voicePeers.values()].map(peer=>peer.pc.connectionState);
+  if(states.includes('failed'))tfVoiceStatus('Voice link unavailable');
+  else if(voiceActive)tfVoiceStatus(states.includes('connected')?'Speaking':states.length?'Speaking · connecting':'Speaking · no listener');
+  else if(states.includes('connected'))tfVoiceStatus('Connected nearby');
+  else if(states.length)tfVoiceStatus('Connecting nearby');
+  else tfVoiceStatus('Listening nearby');
+}
 function tfSetVoiceButton(){
   voiceToggle.setAttribute('aria-pressed',String(voiceEnabled));
   voiceToggle.textContent=voiceEnabled?'🎙 Voice on':'🎙 Voice';
@@ -854,7 +863,7 @@ function tfEnsureVoicePeer(id){
     const remote=tfRemote.get(id);if(remote)tfUpdateVoiceGain(id,peer,tfVoiceDistance(remote));
   };
   pc.onconnectionstatechange=()=>{
-    if(pc.connectionState==='failed'&&voiceEnabled)tfVoiceStatus('Voice link unavailable');
+    tfRefreshVoiceStatus();
   };
   if(tfRoom&&tfRoom.sessionId.localeCompare(id)<0){
     pc.createOffer().then(offer=>pc.setLocalDescription(offer)).then(()=>{
@@ -903,6 +912,7 @@ function tfSyncVoicePeers(){
     }
   });
   for(const id of voicePeers.keys())if(!keep.has(id))tfCloseVoicePeer(id);
+  tfRefreshVoiceStatus();
 }
 function tfUpdateVoiceActivity(){
   if(!voiceEnabled||!voiceAnalyser||!voiceContext||!voiceGate)return;
@@ -914,7 +924,7 @@ function tfUpdateVoiceActivity(){
   const speaking=performance.now()-voiceLastLoudAt<320;
   voiceGate.gain.setTargetAtTime(speaking?1:0,voiceContext.currentTime,speaking ? .025 : .08);
   if(speaking!==voiceActive){
-    voiceActive=speaking;tfVoiceStatus(speaking?'Speaking':'Listening nearby');
+    voiceActive=speaking;tfRefreshVoiceStatus();
     tfSendVoiceState(true,speaking);
   }
 }
@@ -925,11 +935,13 @@ async function tfEnableVoice(){
   try{
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('Microphone capture is unavailable in this browser.');
     if(!window.RTCPeerConnection)throw new Error('WebRTC is unavailable in this browser.');
-    stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1},video:false});
-    if(!voiceStarting){stream.getTracks().forEach(track=>track.stop());return}
     const AudioContextType=window.AudioContext||window.webkitAudioContext;
     if(!AudioContextType)throw new Error('Web Audio is unavailable in this browser.');
-    context=new AudioContextType();await context.resume();
+    context=new AudioContextType();
+    const audioReady=context.resume();
+    stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1},video:false});
+    if(!voiceStarting){stream.getTracks().forEach(track=>track.stop());await context.close();return}
+    await audioReady;
     const source=context.createMediaStreamSource(stream);
     const highPass=context.createBiquadFilter();highPass.type='highpass';highPass.frequency.value=95;
     const compressor=context.createDynamicsCompressor();compressor.threshold.value=-24;compressor.knee.value=18;compressor.ratio.value=3;compressor.attack.value=.005;compressor.release.value=.22;
@@ -942,7 +954,7 @@ async function tfEnableVoice(){
     if(!processedTrack)throw new Error('Could not create the processed microphone track.');
     voiceStream=stream;voiceContext=context;voiceDestination=destination;voiceTrack=processedTrack;
     voiceAnalyser=analyser;voiceGate=gate;voiceMaster=master;voiceLastLoudAt=0;voiceActive=false;voiceEnabled=true;voiceStarting=false;
-    voiceToggle.disabled=false;tfSetVoiceButton();tfVoiceStatus('Listening nearby');
+    voiceToggle.disabled=false;tfSetVoiceButton();tfRefreshVoiceStatus();
     tfSendVoiceState(true,false);
     tfSyncVoicePeers();voiceVadTimer=setInterval(tfUpdateVoiceActivity,100);
   }catch(error){
