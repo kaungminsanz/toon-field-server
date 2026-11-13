@@ -1,8 +1,30 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>Toon Field</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="colyseus-server-url" content="wss://automatic-journey-9456vq757ggc7r9q-2567.app.github.dev">
-<meta name="voice-ice-servers" content='[{"urls":"stun:stun.l.google.com:19302"}]'>
+<meta name="colyseus-server-url" content="">
+<meta name="voice-ice-servers" content='[
+  {"urls":"stun:stun.relay.metered.ca:80"},
+  {
+    "urls":"turn:global.relay.metered.ca:80?transport=udp",
+    "username":"3bd921cb6c5119dbfcd2672asvg",
+    "credential":"gkCmIrnEWPdGXppw"
+  },
+  {
+    "urls":"turn:global.relay.metered.ca:80?transport=tcp",
+    "username":"3bd921cb6c5119dbfcd2672asvg",
+    "credential":"gkCmIrnEWPdGXppw"
+  },
+  {
+    "urls":"turn:global.relay.metered.ca:443?transport=tcp",
+    "username":"3bd921cb6c5119dbfcd2672asvg",
+    "credential":"gkCmIrnEWPdGXppw"
+  },
+  {
+    "urls":"turns:global.relay.metered.ca:443?transport=tcp",
+    "username":"3bd921cb6c5119dbfcd2672asvg",
+    "credential":"gkCmIrnEWPdGXppw"
+  }
+]'>
 <style>
 :root{--hud:#2b2350;--hudbg:rgba(255,255,255,.65);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--hud:#f3eeff;--hudbg:rgba(30,24,60,.6)}}
@@ -18,19 +40,34 @@ canvas{display:block;width:100%;height:100%}
 @media (hover:hover) and (pointer:fine){#stick,#jump,#ride{display:none}}
 @media (orientation:portrait) and (pointer:coarse){
   :root{
-    --portrait-stick:min(288px,74vw,34vh);
-    --portrait-action:min(208px,54vw,24vh);
-    --portrait-ride:min(128px,34vw,15vh);
-    --portrait-knob:min(104px,27vw,13vh);
+    --portrait-stick:min(144px,37vw,17vh);
+    --portrait-action:min(104px,27vw,12vh);
+    --portrait-ride:min(64px,17vw,7.5vh);
+    --portrait-knob:min(52px,13vw,6.5vh);
   }
   #stick{left:12px;width:var(--portrait-stick);height:var(--portrait-stick)}
   #knob{width:var(--portrait-knob);height:var(--portrait-knob)}
   #jump{right:12px;width:var(--portrait-action);height:var(--portrait-action);bottom:calc(env(safe-area-inset-bottom,0px) + 20px + var(--portrait-stick) + 12px)}
   #ride{right:12px;width:var(--portrait-action);height:var(--portrait-ride);bottom:calc(env(safe-area-inset-bottom,0px) + 20px + var(--portrait-stick) + 12px + var(--portrait-action) + 12px)}
-  #emotes{left:12px;right:auto;align-items:flex-start;top:calc(env(safe-area-inset-top,0px) + 54px)}
+  #emotes{right:12px;left:auto;align-items:flex-end;top:calc(env(safe-area-inset-top,0px) + 54px)}
   #mailhint{left:auto;right:12px;top:calc(env(safe-area-inset-top,0px) + 54px);bottom:auto;transform:none;width:min(46vw,180px);white-space:normal;padding:8px 10px}
 }
-#swap{position:fixed;right:12px;top:calc(env(safe-area-inset-top,0px) + 52px);padding:6px 12px;border-radius:99px;border:2px solid #fff;background:var(--hudbg);color:var(--hud);font:600 13px system-ui,sans-serif}
+@media (orientation:landscape) and (pointer:coarse){
+  :root{
+    --land-stick:min(165px,30vw,27vh);
+    --land-action:min(108px,18vw,13.5vh);
+    --land-ride:min(78px,15vw,9.75vh);
+    --land-knob:min(57px,10.5vw,7.5vh);
+  }
+  #stick{left:16px;bottom:18px;width:var(--land-stick);height:var(--land-stick)}
+  #knob{width:var(--land-knob);height:var(--land-knob)}
+  #jump{right:16px;bottom:18px;width:var(--land-action);height:var(--land-action)}
+  #ride{right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 18px + var(--land-action) + 10px);width:var(--land-action);height:var(--land-ride)}
+  #emotes{right:12px;top:calc(env(safe-area-inset-top,0px) + 54px);align-items:flex-end}
+  #mailhint{left:auto;right:16px;top:calc(env(safe-area-inset-top,0px) + 18px);bottom:auto;transform:none;width:min(36vw,160px);white-space:normal;padding:8px 10px}
+  #swap{right:12px;top:calc(env(safe-area-inset-top,0px) + 14px)}
+}
+#swap{position:fixed;right:12px;top:calc(env(safe-area-inset-top,0px) + 14px);padding:6px 12px;border-radius:99px;border:2px solid #fff;background:var(--hudbg);color:var(--hud);font:600 13px system-ui,sans-serif}
 body.sel #hint,body.sel #stick,body.sel #jump,body.sel #ride,body.sel #swap{display:none!important}
 body:not(.sel) #pick{display:none}
 [hidden]{display:none!important}
@@ -78,9 +115,9 @@ body.sel #mailhint{display:none!important}
 #cols button{width:30px;height:30px;border-radius:50%;border:2px solid #fff8;padding:0}
 #cols button.on{outline:3px solid #c98a3b;outline-offset:1px}
 #go{width:100%;padding:12px;border-radius:14px;border:0;background:#7a4a2a;color:#fff!important;font:700 16px system-ui,sans-serif}
-#emotes{position:fixed;right:12px;top:calc(env(safe-area-inset-top,0px) + 96px);display:flex;flex-direction:column;align-items:flex-end;gap:7px;z-index:5}
+#emotes{position:fixed;right:12px;top:calc(env(safe-area-inset-top,0px) + 54px);display:flex;flex-direction:column;align-items:flex-end;gap:7px;z-index:5}
 #emotes button{border:2px solid #fff;border-radius:99px;background:var(--hudbg);color:var(--hud);font:700 13px system-ui;padding:8px 10px;touch-action:manipulation}
-#chatPanel{width:min(82vw,300px);box-sizing:border-box;padding:10px;border:2px solid #fff;border-radius:16px;background:var(--card);color:var(--hud);box-shadow:0 4px 16px #24133b44;touch-action:auto}
+#chatPanel{width:min(72vw,260px);box-sizing:border-box;padding:10px;border:2px solid #fff;border-radius:16px;background:var(--card);color:var(--hud);box-shadow:0 4px 16px #24133b44;touch-action:auto}
 #chatLog{height:124px;overflow:auto;margin-bottom:8px;font-size:13px;overflow-wrap:anywhere;overscroll-behavior:contain}
 #chatLog .chatLine{padding:3px 0}
 #chatLog .chatLine b{margin-right:5px}
@@ -88,13 +125,15 @@ body.sel #mailhint{display:none!important}
 #chatInput{flex:1;min-width:0;box-sizing:border-box;padding:8px 10px;border:2px solid #e6d3bd;border-radius:12px;background:transparent;color:inherit;font:16px system-ui,sans-serif;touch-action:auto}
 #chatForm button{border:0;border-radius:12px;background:#ff8fb8;color:#2b2350;font:700 13px system-ui;padding:0 12px}
 #voiceToggle[aria-pressed="true"]{background:#b8f1c8;color:#184b30}
+#voiceMute{border:2px solid #fff;border-radius:99px;background:var(--hudbg);color:var(--hud);font:600 12px system-ui;padding:7px 10px;touch-action:manipulation}
+#voiceMute[aria-pressed="true"]{background:#ffd23f;color:#2b2350}
 #voiceStatus{max-width:min(82vw,300px);font:600 11px system-ui,sans-serif;color:var(--hud);text-shadow:0 1px 3px #fff;overflow-wrap:anywhere}
 #emoteMenu{display:flex;flex-direction:column;gap:6px;padding:7px;border:2px solid #fff;border-radius:16px;background:var(--hudbg)}
 #emoteMenu button{min-width:118px;text-align:left}
 body.sel #emotes{display:none}
 </style></head><body class="sel">
 <canvas id="c"></canvas>
-<div id="hint" data-touch="Left stick move · drag to look · pinch to zoom · JUMP · RIDE near bike/elephant">W/S move · A/D turn · Space jump · E ride bike/elephant · drag free look · wheel zoom</div>
+<div id="hint" data-touch=""> </div>
 <div id="stick"><div id="knob"></div></div>
 <button id="jump">JUMP</button>
 <button id="ride">RIDE</button>
@@ -102,9 +141,11 @@ body.sel #emotes{display:none}
 <div id="emotes">
   <button id="chatToggle" type="button" aria-expanded="false" aria-controls="chatPanel">💬 Chat</button>
   <button id="voiceToggle" type="button" aria-pressed="false">🎙 Voice</button>
+  <button id="voiceMute" type="button" aria-pressed="false" hidden>🔇 Mute mic</button>
   <span id="voiceStatus" aria-live="polite"></span>
   <div id="chatPanel" hidden>
     <div id="chatLog" role="log" aria-live="polite" aria-label="Chat messages"></div>
+    <div>Voice stays active while you chat.</div>
     <form id="chatForm"><input id="chatInput" maxlength="160" placeholder="Type a message..." autocomplete="off" aria-label="Chat message"><button type="submit">Send</button></form>
   </div>
   <button id="emoteToggle" type="button" aria-expanded="false" aria-controls="emoteMenu">😊 Emotes</button>
@@ -717,7 +758,7 @@ const configuredServerUrl = document.querySelector('meta[name="colyseus-server-u
 const defaultServerUrl = (() => {
   if (location.protocol === 'file:') return 'ws://localhost:2567';
   const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
-  const hostname = location.hostname.replace(/-3000(?=\.app\.github\.dev$)/, '-2567');
+  const hostname = location.hostname.replace(/-\d+(?=\.app\.github\.dev$)/, '-2567');
   const port = location.port === '3000' ? '2567' : location.port;
   return `${scheme}//${hostname}${port ? `:${port}` : ''}`;
 })();
@@ -795,10 +836,10 @@ addEventListener('keydown',e=>{
     e.preventDefault();tfCloseChat();
   }
 });
-const voiceToggle=$('voiceToggle'),voiceStatus=$('voiceStatus');
+const voiceToggle=$('voiceToggle'),voiceMute=$('voiceMute'),voiceStatus=$('voiceStatus');
 const VOICE_RANGE=20,VOICE_DISCONNECT_RANGE=23;
 const voicePeers=new Map();
-let voiceEnabled=false,voiceStarting=false,voiceActive=false,voiceStream=null,voiceContext=null;
+let voiceEnabled=false,voiceStarting=false,voiceMuted=false,voiceActive=false,voiceStream=null,voiceContext=null;
 let voiceDestination=null,voiceTrack=null,voiceAnalyser=null,voiceGate=null,voiceMaster=null,voiceVadTimer=0,voiceLastLoudAt=0,voiceSyncAt=0;
 const voiceIceServers=(()=>{
   try{
@@ -815,6 +856,7 @@ function tfRefreshVoiceStatus(){
   const receivingAudio=peers.some(([,peer])=>peer.remoteTrack&&peer.remoteTrack.readyState==='live'&&!peer.remoteTrack.muted);
   const remoteSpeaking=peers.some(([id,peer])=>peer.remoteTrack&&tfRemote.get(id)?.voiceActive);
   if(voiceContext&&voiceContext.state!=='running')tfVoiceStatus('Tap Voice to restore audio');
+  else if(voiceMuted)tfVoiceStatus('Microphone muted · receiving nearby voice');
   else if(states.includes('failed'))tfVoiceStatus('Voice link failed · network may need TURN');
   else if(voiceActive&&remoteSpeaking)tfVoiceStatus('Speaking · hearing nearby voice');
   else if(voiceActive)tfVoiceStatus(states.includes('connected')?'Mic active · peer connected':states.length?'Speaking · connecting':'Speaking · no listener');
@@ -827,17 +869,56 @@ function tfRefreshVoiceStatus(){
 function tfSetVoiceButton(){
   voiceToggle.setAttribute('aria-pressed',String(voiceEnabled));
   voiceToggle.textContent=voiceEnabled?'🎙 Voice on':'🎙 Voice';
+  voiceMute.hidden=!voiceEnabled;
+  voiceMute.disabled=voiceStarting;
+  voiceMute.setAttribute('aria-pressed',String(voiceMuted));
+  voiceMute.textContent=voiceMuted?'🔊 Unmute mic':'🔇 Mute mic';
 }
 function tfVoiceDistance(r){return Math.hypot(r.avatar.position.x-hero.position.x,r.avatar.position.z-hero.position.z)}
-function tfUpdateVoiceGain(id,peer,distance){
+function tfVoiceSpatialDistance(r){
+  return Math.hypot(r.avatar.position.x-hero.position.x,r.avatar.position.y-hero.position.y,r.avatar.position.z-hero.position.z);
+}
+function tfSetAudioVector(node,prefix,values,legacyMethod){
+  const safeValues=values.map(value=>Number.isFinite(value)?value:0);
+  const axes=['X','Y','Z'];
+  const params=axes.map(axis=>node[`${prefix}${axis}`]);
+  if(params.every(param=>param&&typeof param.setTargetAtTime==='function')){
+    params.forEach((param,index)=>param.setTargetAtTime(safeValues[index] ?? 0,voiceContext.currentTime,.08));
+    return;
+  }
+  if(typeof node[legacyMethod]==='function'){
+    if(prefix==='forward'){
+      node[legacyMethod](...(safeValues.slice(0,3)),0,1,0);
+      return;
+    }
+    if(prefix==='position'){
+      node[legacyMethod](...safeValues);
+      return;
+    }
+    node[legacyMethod](...safeValues);
+  }
+}
+function tfUpdateVoiceListener(){
+  if(!voiceContext)return;
+  const listener=voiceContext.listener,y=hero.position.y+1.5;
+  tfSetAudioVector(listener,'position',[hero.position.x,y,hero.position.z],'setPosition');
+  const yaw=characterYaw||0;
+  tfSetAudioVector(listener,'forward',[Math.sin(yaw),0,Math.cos(yaw)],'setOrientation');
+}
+function tfUpdateVoiceGain(peer,remote){
   if(peer.remoteGain&&voiceContext){
-    const level=Math.max(.5,1-.5*Math.pow(Math.min(distance,VOICE_RANGE)/VOICE_RANGE,1.5));
+    const distance=tfVoiceSpatialDistance(remote);
+    const maxDistance=VOICE_RANGE;
+    const floor=0.35;
+    const level=Math.max(floor,1-(1-floor)*Math.pow(Math.min(distance,maxDistance)/maxDistance,1.3));
     peer.remoteGain.gain.setTargetAtTime(level,voiceContext.currentTime,.12);
+    const position=remote.avatar.position;
+    tfSetAudioVector(peer.remotePanner,'position',[position.x,position.y+1.5,position.z],'setPosition');
   }
 }
 function tfSendVoiceState(enabled,speaking){
   if(!tfRoom)return;
-  try{tfRoom.send('voiceState',{enabled,speaking})}
+  try{tfRoom.send('voiceState',{enabled,speaking,muted:voiceMuted})}
   catch(error){console.warn('Could not update voice status:',error)}
 }
 function tfSendVoiceSignal(id,signal){
@@ -850,12 +931,28 @@ function tfCloseVoicePeer(id){
   voicePeers.delete(id);peer.pc.onicecandidate=null;peer.pc.ontrack=null;
   if(peer.remoteTrack){peer.remoteTrack.onunmute=null;peer.remoteTrack.onmute=null}
   if(peer.remoteSource)peer.remoteSource.disconnect();
+  if(peer.remotePanner)peer.remotePanner.disconnect();
   if(peer.remoteGain)peer.remoteGain.disconnect();
   peer.pc.close();
 }
 function tfEnsureVoicePeer(id){
-  if(voicePeers.has(id)||!voiceEnabled||!voiceContext||!voiceTrack||!voiceDestination)return voicePeers.get(id)||null;
+  if(!voiceEnabled||!voiceContext||!voiceTrack||!voiceDestination)return voicePeers.get(id)||null;
+  const existing=voicePeers.get(id);
+  if(existing){
+    if(existing.pc.connectionState==='failed'||existing.pc.connectionState==='closed'){
+      tfCloseVoicePeer(id);
+    }else{
+      return existing;
+    }
+  }
   const pc=new RTCPeerConnection({iceServers:voiceIceServers});
+  pc.oniceconnectionstatechange = () => {
+  console.log("ICE STATE:", pc.iceConnectionState);
+};
+
+pc.onconnectionstatechange = () => {
+  console.log("PEER STATE:", pc.connectionState);
+};
   const peer={pc,remoteSource:null,remoteGain:null,remoteTrack:null,pendingCandidates:[]};
   voicePeers.set(id,peer);
   try{pc.addTrack(voiceTrack,voiceDestination.stream)}catch(error){voicePeers.delete(id);pc.close();throw error}
@@ -865,15 +962,42 @@ function tfEnsureVoicePeer(id){
     peer.remoteTrack=e.track;
     e.track.onunmute=tfRefreshVoiceStatus;e.track.onmute=tfRefreshVoiceStatus;
     if(peer.remoteSource)peer.remoteSource.disconnect();
+    if(peer.remotePanner)peer.remotePanner.disconnect();
     if(peer.remoteGain)peer.remoteGain.disconnect();
     const stream=e.streams[0]||new MediaStream([e.track]);
-    peer.remoteSource=voiceContext.createMediaStreamSource(stream);
-    peer.remoteGain=voiceContext.createGain();
-    peer.remoteSource.connect(peer.remoteGain);peer.remoteGain.connect(voiceMaster);
-    const remote=tfRemote.get(id);if(remote)tfUpdateVoiceGain(id,peer,tfVoiceDistance(remote));
+    // TEST: Play remote voice using browser audio
+if (peer.remoteAudio) {
+  peer.remoteAudio.pause();
+  peer.remoteAudio.remove();
+}
+
+const audio = document.createElement('audio');
+audio.autoplay = true;
+audio.playsInline = true;
+audio.srcObject = stream;
+audio.volume = 1;
+
+document.body.appendChild(audio);
+peer.remoteAudio = audio;
+
+audio.play().then(() => {
+  console.log("REMOTE AUDIO PLAYING!");
+}).catch(err => {
+  console.error("REMOTE AUDIO ERROR:", err);
+});
+    const remote=tfRemote.get(id);if(remote)tfUpdateVoiceGain(peer,remote);
     tfRefreshVoiceStatus();
   };
   pc.onconnectionstatechange=()=>{
+    if(['failed','closed','disconnected'].includes(pc.connectionState)){
+      if(voicePeers.get(id)===peer){
+        setTimeout(()=>{
+          if(voicePeers.get(id)===peer && (pc.connectionState==='failed'||pc.connectionState==='closed'||pc.connectionState==='disconnected')){
+            tfCloseVoicePeer(id);tfSyncVoicePeers();
+          }
+        },150);
+      }
+    }
     tfRefreshVoiceStatus();
   };
   if(tfRoom&&tfRoom.sessionId.localeCompare(id)<0){
@@ -885,11 +1009,10 @@ function tfEnsureVoicePeer(id){
 }
 async function tfHandleVoiceSignal(data){
   if(!voiceEnabled||!data||typeof data.from!=='string'||!data.signal)return;
-  const remote=tfRemote.get(data.from);
-  if(!remote||tfVoiceDistance(remote)>VOICE_DISCONNECT_RANGE)return;
+  const peer=tfEnsureVoicePeer(data.from);
+  if(!peer)return;
+  const {pc}=peer,signal=data.signal;
   try{
-    const peer=tfEnsureVoicePeer(data.from);if(!peer)return;
-    const {pc}=peer,signal=data.signal;
     if(signal.candidate){
       const candidate=new RTCIceCandidate(signal);
       if(pc.remoteDescription)await pc.addIceCandidate(candidate);
@@ -897,6 +1020,13 @@ async function tfHandleVoiceSignal(data){
       return;
     }
     if(signal.type!=='offer'&&signal.type!=='answer')return;
+    if(signal.type==='offer'&&pc.signalingState==='have-local-offer'){
+      await pc.setRemoteDescription(signal);
+      const answer=await pc.createAnswer();
+      await pc.setLocalDescription(answer);
+      if(voicePeers.get(data.from)===peer&&pc.localDescription)tfSendVoiceSignal(data.from,pc.localDescription.toJSON());
+      return;
+    }
     await pc.setRemoteDescription(signal);
     while(peer.pendingCandidates.length)await pc.addIceCandidate(peer.pendingCandidates.shift());
     if(signal.type==='offer'){
@@ -911,6 +1041,7 @@ function tfSyncVoicePeers(){
     for(const id of voicePeers.keys())tfCloseVoicePeer(id);
     return;
   }
+  tfUpdateVoiceListener();
   const keep=new Set();
   tfRemote.forEach((remote,id)=>{
     const distance=tfVoiceDistance(remote);
@@ -918,7 +1049,7 @@ function tfSyncVoicePeers(){
     if(remote.voiceEnabled&&distance<=(existing?VOICE_DISCONNECT_RANGE:VOICE_RANGE)){
       try{
         const peer=tfEnsureVoicePeer(id);
-        if(peer){keep.add(id);tfUpdateVoiceGain(id,peer,distance)}
+        if(peer){keep.add(id);tfUpdateVoiceGain(peer,remote)}
       }catch(error){console.warn('Could not connect nearby voice peer:',error);tfVoiceStatus('Voice connection failed')}
     }
   });
@@ -931,8 +1062,9 @@ function tfUpdateVoiceActivity(){
   voiceAnalyser.getByteTimeDomainData(samples);
   let energy=0;
   for(const sample of samples){const value=(sample-128)/128;energy+=value*value}
-  if(Math.sqrt(energy/samples.length)>.018)voiceLastLoudAt=performance.now();
-  const speaking=performance.now()-voiceLastLoudAt<320;
+  const signalLevel=Math.sqrt(energy/samples.length);
+  if(signalLevel>.018)voiceLastLoudAt=performance.now();
+  const speaking=!voiceMuted && (signalLevel>.008 || performance.now()-voiceLastLoudAt<900);
   voiceGate.gain.setTargetAtTime(speaking?1:0,voiceContext.currentTime,speaking ? .025 : .08);
   if(speaking!==voiceActive){
     voiceActive=speaking;tfRefreshVoiceStatus();
@@ -965,7 +1097,7 @@ async function tfEnableVoice(){
     const processedTrack=destination.stream.getAudioTracks()[0];
     if(!processedTrack)throw new Error('Could not create the processed microphone track.');
     voiceStream=stream;voiceContext=context;voiceDestination=destination;voiceTrack=processedTrack;
-    voiceAnalyser=analyser;voiceGate=gate;voiceMaster=master;voiceLastLoudAt=0;voiceActive=false;voiceEnabled=true;voiceStarting=false;
+    voiceAnalyser=analyser;voiceGate=gate;voiceMaster=master;voiceLastLoudAt=0;voiceMuted=false;voiceActive=false;voiceEnabled=true;voiceStarting=false;
     context.addEventListener('statechange',()=>{if(voiceContext===context)tfRefreshVoiceStatus()});
     voiceToggle.disabled=false;tfSetVoiceButton();tfRefreshVoiceStatus();
     tfSendVoiceState(true,false);
@@ -979,7 +1111,7 @@ async function tfEnableVoice(){
 function tfDisableVoice(){
   voiceStarting=false;
   if(voiceEnabled)tfSendVoiceState(false,false);
-  voiceEnabled=false;voiceActive=false;clearInterval(voiceVadTimer);voiceVadTimer=0;
+  voiceEnabled=false;voiceMuted=false;voiceActive=false;clearInterval(voiceVadTimer);voiceVadTimer=0;
   for(const id of voicePeers.keys())tfCloseVoicePeer(id);
   if(voiceStream)voiceStream.getTracks().forEach(track=>track.stop());
   if(voiceTrack)voiceTrack.stop();
@@ -993,6 +1125,13 @@ voiceToggle.addEventListener('click',()=>{
     voiceContext.resume().then(tfRefreshVoiceStatus).catch(error=>{tfVoiceStatus('Audio could not resume');console.warn('Could not resume voice audio:',error)});
   }else if(voiceEnabled)tfDisableVoice();
   else void tfEnableVoice();
+});
+voiceMute.addEventListener('click',()=>{
+  if(!voiceEnabled||!voiceGate)return;
+  voiceMuted=!voiceMuted;
+  if(voiceMuted)voiceActive=false;
+  voiceGate.gain.setTargetAtTime(voiceActive?1:0,voiceContext.currentTime,voiceMuted ? .02 : .08);
+  tfSetVoiceButton();tfRefreshVoiceStatus();tfSendVoiceState(true,voiceActive);
 });
 document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'&&voiceEnabled&&voiceContext&&voiceContext.state!=='running'){
@@ -1540,7 +1679,7 @@ function loop(){
     if(r.emote && performance.now()<r.emoteUntil)tfPoseEmote(r,r.emote,dt,t);
     else if(r.emote){r.emote='';r.rig.body.rotation.z=0;r.rig.head.rotation.x=-r.rig.body.rotation.x*.6;r.rig.armL.rotation.z=-.1;r.rig.armR.rotation.z=.1}
   });
-  if(performance.now()-voiceSyncAt>400){voiceSyncAt=performance.now();tfSyncVoicePeers()}
+  if(performance.now()-voiceSyncAt>100){voiceSyncAt=performance.now();tfSyncVoicePeers()}
   {let eT=false,bT=false;
     tfRemote.forEach(r=>{
       if(r.ride==='ele'){eT=true;remoteEleLast={x:r.avatar.position.x,z:r.avatar.position.z,ry:r.rideYaw}}
