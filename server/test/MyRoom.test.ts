@@ -123,5 +123,13 @@ describe("testing your Colyseus app", () => {
       from: sender.sessionId,
       signal: { type: "offer", sdp: "test-sdp" },
     });
+
+    const mutedPatch = sender.waitForNextPatch();
+    sender.send("voiceState", { enabled: true, speaking: true, muted: true });
+    await mutedPatch;
+    const mutedPlayer = sender.state.players.get(sender.sessionId);
+    assert.strictEqual(mutedPlayer.voiceMuted, true);
+    assert.strictEqual(mutedPlayer.voiceActive, false);
   });
+
 });

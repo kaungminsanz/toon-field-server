@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><title>Toon Field</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="colyseus-server-url" content="wss://automatic-journey-9456vq757ggc7r9q-2567.app.github.dev">
+<meta name="colyseus-server-url" content="wss://toon-field-server-production.up.railway.app">
 <meta name="voice-ice-servers" content='[
   {"urls":"stun:stun.relay.metered.ca:80"},
   {
@@ -762,7 +762,11 @@ const defaultServerUrl = (() => {
   const port = location.port === '3000' ? '2567' : location.port;
   return `${scheme}//${hostname}${port ? `:${port}` : ''}`;
 })();
-const TF_SERVER_URL = configuredServerUrl || defaultServerUrl;
+const isLocalDevelopment = location.protocol === 'file:' ||
+  location.hostname === 'localhost' ||
+  location.hostname === '127.0.0.1' ||
+  location.hostname.endsWith('.app.github.dev');
+const TF_SERVER_URL = isLocalDevelopment || !configuredServerUrl ? defaultServerUrl : configuredServerUrl;
 let tfRoom = null, tfLastSend = 0;
 const tfRemote = new Map();
 // While another player rides a vehicle, our own copy of it is hidden and can't be mounted.

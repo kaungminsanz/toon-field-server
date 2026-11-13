@@ -12,6 +12,7 @@ const Player = schema({
   name: t.string().default("Guest"),
   look: t.string().default("{}"),
   voiceEnabled: t.boolean().default(false),
+  voiceMuted: t.boolean().default(false),
   voiceActive: t.boolean().default(false),
 }, "Player");
 
@@ -154,11 +155,18 @@ export class ToonFieldRoom extends Room {
       const player = this.state.players.get(client.sessionId);
       if (!player) return;
 
+      const muted = data.enabled && data.muted === true;
+      const muteChanged = player.voiceMuted !== muted;
       const now = Date.now();
-      if (data.enabled && now - (this.lastVoiceState.get(client.sessionId) ?? 0) < VOICE_STATE_MIN_MS) return;
+      if (
+        data.enabled &&
+        !muteChanged &&
+        now - (this.lastVoiceState.get(client.sessionId) ?? 0) < VOICE_STATE_MIN_MS
+      ) return;
       this.lastVoiceState.set(client.sessionId, now);
       player.voiceEnabled = data.enabled;
-      player.voiceActive = data.enabled && data.speaking;
+      player.voiceMuted = muted;
+      player.voiceActive = data.enabled && data.speaking && !muted;
     });
 
     this.onMessage("voiceSignal", (client, data: any) => {

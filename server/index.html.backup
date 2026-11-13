@@ -568,7 +568,17 @@ addEventListener('keydown',e=>{if(mailOpen&&e.code==='Escape')closeMail()});
 
 
 // ===== TOON FIELD MULTIPLAYER (Colyseus) =====
-const TF_SERVER_URL = "wss://automatic-journey-9456vq757ggc7r9q-2567.app.github.dev";
+const TF_SERVER_URL = (() => {
+  if (location.protocol === 'file:') return 'ws://localhost:2567';
+  const isLocalDevelopment = location.hostname === 'localhost' ||
+    location.hostname === '127.0.0.1' ||
+    location.hostname.endsWith('.app.github.dev');
+  if (!isLocalDevelopment) return 'wss://toon-field-server-production.up.railway.app';
+  const scheme = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const hostname = location.hostname.replace(/-\d+(?=\.app\.github\.dev$)/, '-2567');
+  const port = location.port === '3000' ? '2567' : location.port;
+  return `${scheme}//${hostname}${port ? `:${port}` : ''}`;
+})();
 let tfRoom=null, tfLastSend=0;
 const tfRemote=new Map();
 function tfLabel(name){

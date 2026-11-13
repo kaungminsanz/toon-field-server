@@ -7,9 +7,12 @@ import {
   createRouter,
   createEndpoint,
 } from "colyseus";
+import { fileURLToPath } from "node:url";
 
 import { MyRoom } from "./rooms/MyRoom.js";
 import { ToonFieldRoom } from "./rooms/ToonFieldRoom.js";
+
+const gamePage = fileURLToPath(new URL("../index.html", import.meta.url));
 
 const server = defineServer({
   rooms: {
@@ -28,6 +31,10 @@ const server = defineServer({
   }),
 
   express: (app) => {
+    app.get("/", (_req, res) => {
+      res.sendFile(gamePage);
+    });
+
     app.get("/hi", (_req, res) => {
       res.send("Colyseus server is running!");
     });
